@@ -101,6 +101,7 @@ async function startExperience() {
       scene.metadata.suctionSound.dispose();
       scene.metadata.tunnelSound.dispose();
       scene.metadata.voicesSound.dispose();
+      scene.metadata.trafficSound.dispose();
       scene.metadata.whiteRoomTone.dispose();
       scene.metadata.whiteRoom.dispose();
       scene.metadata.dreamyIdyll.dispose();
