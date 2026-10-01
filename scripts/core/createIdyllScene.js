@@ -13,6 +13,7 @@ import { createTunnelSound } from "../audio/createTunnelSound.js";
 import { createIdyllSound } from "../audio/createIdyllSound.js";
 import { createRiftSound } from "../audio/createRiftSound.js";
 import { createSuctionSound } from "../audio/createSuctionSound.js";
+import { createVoicesSound } from "../audio/createVoicesSound.js";
 
 /** Creates the static, standing-height idyll scene. WebXR is added separately. */
 export async function createIdyllScene(
@@ -67,6 +68,7 @@ export async function createIdyllScene(
   const riftSound = createRiftSound();
   const suctionSound = createSuctionSound();
   const tunnelSound = createTunnelSound();
+  const voicesSound = createVoicesSound();
   let preRiftLightDisturbance = null;
   const whiteRoomTone = createWhiteRoomTone({
     onActivate: onWhiteRoomSoundStarted,
@@ -101,8 +103,14 @@ export async function createIdyllScene(
       idyllDesaturation.update(tunnelTime);
       suctionWhiteFade.update(tunnelTime);
     },
+    onTunnelVideoChange: ({ index, video }) => {
+      // The current sequence opens with video 12. Preserve that sequence and
+      // attach Voices to its first existing cut, which changes to video 2.
+      if (index === 0 && video === 2) voicesSound.start();
+    },
     onSuctionStart: (tunnelTime, tunnelEndTime) => {
       suctionSound.start();
+      voicesSound.fadeOutAndStop(1.5);
       suctionWhiteFade.start(tunnelTime, tunnelEndTime);
       tunnelSound.fadeTo(0.28, 8);
     },
@@ -131,6 +139,7 @@ export async function createIdyllScene(
       riftSound.stop();
       suctionSound.stop();
       tunnelSound.stop();
+      voicesSound.stop();
       dreamyIdyll.show();
     },
     idyllWorldMeshes: scene.meshes.filter((mesh) => (
@@ -158,6 +167,7 @@ export async function createIdyllScene(
     riftSound,
     suctionSound,
     tunnelSound,
+    voicesSound,
   };
 
   return scene;

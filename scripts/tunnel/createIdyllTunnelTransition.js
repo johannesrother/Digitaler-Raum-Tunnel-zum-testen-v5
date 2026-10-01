@@ -317,6 +317,10 @@ export function createIdyllTunnelTransition(scene, options) {
       }
       if (videoChange && tunnelEntryElapsed >= videoChange.at) {
         options.tunnel.switchVideo(videoChange.video);
+        options.onTunnelVideoChange?.({
+          index: nextVideoChangeIndex,
+          video: videoChange.video,
+        });
         nextVideoChangeIndex += 1;
         preparedVideoChangeIndex = -1;
       }
