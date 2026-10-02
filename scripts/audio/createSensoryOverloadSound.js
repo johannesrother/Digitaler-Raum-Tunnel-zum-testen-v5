@@ -16,14 +16,30 @@ export const SENSORY_OVERLOAD_EVENTS = Object.freeze([
   { source: "demonic", start: 29.1, end: 30.7, offset: 0.25, volume: 0.13, fadeIn: 0.12, fadeOut: 0.22 },
   { source: "greeting", start: 32.9, end: 34.2, offset: 1.05, volume: 0.14, fadeIn: 0.08, fadeOut: 0.22 },
   { source: "walla", start: 35.8, end: 40.2, offset: 36.0, volume: 0.06, fadeIn: 0.75, fadeOut: 0.5 },
-  { source: "noise", start: 37.7, end: 40.9, offset: 4.5, volume: 0.055, fadeIn: 0.3, fadeOut: 0.35 },
-  { source: "demonic", start: 43.6, end: 45.1, offset: 0.1, volume: 0.15, fadeIn: 0.1, fadeOut: 0.2 },
-  { source: "walla", start: 45.7, end: 49.1, offset: 49.0, volume: 0.07, fadeIn: 0.55, fadeOut: 0.4 },
-  { source: "greeting", start: 46.5, end: 47.8, offset: 0.8, volume: 0.15, fadeIn: 0.08, fadeOut: 0.18 },
-  { source: "noise", start: 48.5, end: 51.9, offset: 1.9, volume: 0.075, fadeIn: 0.22, fadeOut: 0.3 },
-  { source: "walla", start: 49.2, end: 54.5, offset: 8.0, volume: 0.08, fadeIn: 0.35, fadeOut: 0.7 },
-  { source: "demonic", start: 50.1, end: 51.9, offset: 0.2, volume: 0.17, fadeIn: 0.08, fadeOut: 0.18 },
-  { source: "greeting", start: 51.0, end: 52.1, offset: 2.1, volume: 0.16, fadeIn: 0.08, fadeOut: 0.16 },
+  { source: "noise", start: 37.7, end: 40.2, offset: 4.5, volume: 0.055, fadeIn: 0.3, fadeOut: 0.35 },
+
+  // Final-third waves: distinct source offsets create fragments instead of
+  // repeating four complete tracks. Relief contracts from 0.65s to 0.30s.
+  { source: "noise", start: 40.8, end: 42.1, offset: 0.35, volume: 0.06, fadeIn: 0.12, fadeOut: 0.18 },
+  { source: "greeting", start: 41.05, end: 41.85, offset: 2.75, volume: 0.145, fadeIn: 0.06, fadeOut: 0.12 },
+
+  { source: "walla", start: 42.75, end: 45.15, offset: 51.0, volume: 0.068, fadeIn: 0.24, fadeOut: 0.28 },
+  { source: "demonic", start: 43.15, end: 44.65, offset: 0.05, volume: 0.15, fadeIn: 0.07, fadeOut: 0.14 },
+  { source: "greeting", start: 44.0, end: 45.0, offset: 0.4, volume: 0.15, fadeIn: 0.06, fadeOut: 0.13 },
+
+  { source: "noise", start: 45.7, end: 48.1, offset: 5.8, volume: 0.068, fadeIn: 0.18, fadeOut: 0.22 },
+  { source: "walla", start: 46.15, end: 47.65, offset: 12.0, volume: 0.073, fadeIn: 0.18, fadeOut: 0.22 },
+  { source: "greeting", start: 46.8, end: 47.8, offset: 1.45, volume: 0.155, fadeIn: 0.055, fadeOut: 0.12 },
+  { source: "demonic", start: 47.2, end: 48.1, offset: 1.05, volume: 0.16, fadeIn: 0.055, fadeOut: 0.11 },
+
+  { source: "walla", start: 48.65, end: 50.05, offset: 27.0, volume: 0.077, fadeIn: 0.15, fadeOut: 0.18 },
+  { source: "noise", start: 48.95, end: 50.05, offset: 2.1, volume: 0.073, fadeIn: 0.1, fadeOut: 0.14 },
+  { source: "demonic", start: 49.25, end: 49.95, offset: 0.65, volume: 0.165, fadeIn: 0.05, fadeOut: 0.1 },
+
+  { source: "noise", start: 50.35, end: 52.1, offset: 6.4, volume: 0.08, fadeIn: 0.08, fadeOut: 0.16 },
+  { source: "walla", start: 50.5, end: 54.5, offset: 8.0, volume: 0.082, fadeIn: 0.1, fadeOut: 0.7 },
+  { source: "demonic", start: 50.75, end: 52.05, offset: 0.18, volume: 0.175, fadeIn: 0.05, fadeOut: 0.12 },
+  { source: "greeting", start: 51.1, end: 52.1, offset: 2.1, volume: 0.165, fadeIn: 0.05, fadeOut: 0.12 },
 ]);
 
 /** Four reusable sources; all scheduling is tied to tunnel progress. */

@@ -106,6 +106,7 @@ export async function createIdyllScene(
     onTunnelUpdate: (tunnelTime) => {
       idyllDesaturation.update(tunnelTime);
       suctionWhiteFade.update(tunnelTime);
+      voicesSound.update(tunnelTime);
       trafficSound.update(tunnelTime);
       sensoryOverloadSound.update(tunnelTime);
     },

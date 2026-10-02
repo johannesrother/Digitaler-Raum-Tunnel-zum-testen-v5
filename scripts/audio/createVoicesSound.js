@@ -3,6 +3,16 @@ const VOICES_FADE_IN_SECONDS = 1.5;
 const AUDIO_FADE_STEP_MS = 16;
 const VOICES_URL = new URL("../../assets/sounds/Voices.wav", import.meta.url);
 
+// The first full playback still belongs to the first video cut. These late,
+// progress-driven fragments reuse that same element to join the final waves.
+export const VOICES_LATE_EVENTS = Object.freeze([
+  { start: 40.8, end: 42.0, offset: 0.4, volume: 0.22, fadeIn: 0.14, fadeOut: 0.18 },
+  { start: 43.0, end: 44.8, offset: 3.1, volume: 0.24, fadeIn: 0.12, fadeOut: 0.2 },
+  { start: 45.9, end: 47.6, offset: 5.5, volume: 0.26, fadeIn: 0.1, fadeOut: 0.18 },
+  { start: 48.8, end: 49.95, offset: 1.8, volume: 0.28, fadeIn: 0.08, fadeOut: 0.14 },
+  { start: 50.45, end: 52.1, offset: 4.0, volume: 0.30, fadeIn: 0.07, fadeOut: 0.14 },
+]);
+
 /** A short, non-looping voice layer introduced by the first tunnel video cut. */
 export function createVoicesSound() {
   const voicesAudio = new Audio(VOICES_URL.href);
@@ -16,6 +26,8 @@ export function createVoicesSound() {
   let active = false;
   let fadeFrame = null;
   let playbackGeneration = 0;
+  let lateEventIndex = -1;
+  let ending = false;
 
   const cancelFade = () => {
     if (fadeFrame !== null) window.clearTimeout(fadeFrame);
@@ -58,17 +70,43 @@ export function createVoicesSound() {
     if (!active) return;
     active = false;
     cancelFade();
-    voicesAudio.volume = VOICES_VOLUME;
+    voicesAudio.volume = lateEventIndex >= 0 ? 0 : VOICES_VOLUME;
   };
   voicesAudio.addEventListener("ended", onEnded);
 
   const stop = () => {
     playbackGeneration += 1;
     active = false;
+    lateEventIndex = -1;
+    ending = false;
     cancelFade();
     voicesAudio.pause();
     voicesAudio.currentTime = 0;
     voicesAudio.volume = VOICES_VOLUME;
+  };
+
+  const stopLateFragment = () => {
+    playbackGeneration += 1;
+    active = false;
+    lateEventIndex = -1;
+    cancelFade();
+    voicesAudio.volume = 0;
+    voicesAudio.pause();
+  };
+
+  const startLateFragment = (index) => {
+    const event = VOICES_LATE_EVENTS[index];
+    stopLateFragment();
+    active = true;
+    lateEventIndex = index;
+    voicesAudio.currentTime = event.offset;
+    const generation = ++playbackGeneration;
+    voicesAudio.play().catch((error) => {
+      if (generation !== playbackGeneration) return;
+      active = false;
+      lateEventIndex = -1;
+      console.error("VOICES FRAGMENT ERROR:", error);
+    });
   };
 
   const fadeTo = (target, duration, stopAfterFade = false) => {
@@ -100,6 +138,8 @@ export function createVoicesSound() {
     start() {
       if (active) return;
       active = true;
+      ending = false;
+      lateEventIndex = -1;
       cancelFade();
       voicesAudio.currentTime = 0;
       voicesAudio.volume = 0;
@@ -113,7 +153,20 @@ export function createVoicesSound() {
         console.error("VOICES AUDIO ERROR:", error);
       });
     },
+    update(tunnelTime) {
+      if (ending) return;
+      const eventIndex = VOICES_LATE_EVENTS.findIndex((event) => (
+        tunnelTime >= event.start && tunnelTime < event.end
+      ));
+      if (eventIndex < 0) {
+        if (lateEventIndex >= 0) stopLateFragment();
+        return;
+      }
+      if (lateEventIndex !== eventIndex) startLateFragment(eventIndex);
+      voicesAudio.volume = lateEventVolumeAt(VOICES_LATE_EVENTS[eventIndex], tunnelTime);
+    },
     fadeOutAndStop(duration = 1.5) {
+      ending = true;
       fadeTo(0, duration, true);
     },
     stop,
@@ -130,7 +183,19 @@ export function createVoicesSound() {
         playing: !voicesAudio.paused,
         currentTime: voicesAudio.currentTime,
         volume: voicesAudio.volume,
+        lateEventIndex,
+        ending,
       };
     },
   };
+}
+
+function lateEventVolumeAt(event, tunnelTime) {
+  const fadeIn = Math.min(1, (tunnelTime - event.start) / event.fadeIn);
+  const fadeOut = Math.min(1, (event.end - tunnelTime) / event.fadeOut);
+  return event.volume * smoothstep(Math.max(0, Math.min(fadeIn, fadeOut)));
+}
+
+function smoothstep(value) {
+  return value * value * (3 - 2 * value);
 }
