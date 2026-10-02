@@ -15,6 +15,7 @@ import { createRiftSound } from "../audio/createRiftSound.js";
 import { createSuctionSound } from "../audio/createSuctionSound.js";
 import { createVoicesSound } from "../audio/createVoicesSound.js";
 import { createTrafficSound } from "../audio/createTrafficSound.js";
+import { createSensoryOverloadSound } from "../audio/createSensoryOverloadSound.js";
 
 /** Creates the static, standing-height idyll scene. WebXR is added separately. */
 export async function createIdyllScene(
@@ -71,6 +72,7 @@ export async function createIdyllScene(
   const tunnelSound = createTunnelSound();
   const voicesSound = createVoicesSound();
   const trafficSound = createTrafficSound();
+  const sensoryOverloadSound = createSensoryOverloadSound();
   let preRiftLightDisturbance = null;
   const whiteRoomTone = createWhiteRoomTone({
     onActivate: onWhiteRoomSoundStarted,
@@ -105,6 +107,7 @@ export async function createIdyllScene(
       idyllDesaturation.update(tunnelTime);
       suctionWhiteFade.update(tunnelTime);
       trafficSound.update(tunnelTime);
+      sensoryOverloadSound.update(tunnelTime);
     },
     onTunnelVideoChange: ({ index, video }) => {
       // The current sequence opens with video 12. Preserve that sequence and
@@ -115,6 +118,7 @@ export async function createIdyllScene(
       suctionSound.start();
       voicesSound.fadeOutAndStop(1.5);
       trafficSound.beginExitFade(tunnelTime, 2.2);
+      sensoryOverloadSound.beginExitFade(tunnelTime, 2);
       suctionWhiteFade.start(tunnelTime, tunnelEndTime);
       tunnelSound.fadeTo(0.28, 8);
     },
@@ -125,6 +129,7 @@ export async function createIdyllScene(
       tunnelSound.fadeOutAndStop(2);
       suctionSound.fadeOutAndStop(2);
       trafficSound.stop();
+      sensoryOverloadSound.stop();
     },
     onTunnelEntry: () => {
       idyllSound.fadeOutAndStop(2.5);
@@ -146,6 +151,7 @@ export async function createIdyllScene(
       tunnelSound.stop();
       voicesSound.stop();
       trafficSound.stop();
+      sensoryOverloadSound.stop();
       dreamyIdyll.show();
     },
     idyllWorldMeshes: scene.meshes.filter((mesh) => (
@@ -175,6 +181,7 @@ export async function createIdyllScene(
     tunnelSound,
     voicesSound,
     trafficSound,
+    sensoryOverloadSound,
   };
 
   return scene;
