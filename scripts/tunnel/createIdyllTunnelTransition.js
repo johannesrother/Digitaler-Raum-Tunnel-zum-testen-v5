@@ -3,6 +3,7 @@ import {
   getTunnelDiameter,
   getTunnelPhase,
 } from "./tunnelConfig.js";
+import { PERF_DEBUG, isPerfDebugFinalThird } from "../debug/performanceDebug.js";
 
 const IDYLL_TRAVEL_DURATION = 20;
 const RIFT_FORM_START = 16;
@@ -138,6 +139,8 @@ export function createIdyllTunnelTransition(scene, options) {
   let tunnelSpeedClockOrigin = 0;
   let tunnelSpeedClockInitialized = false;
   let tunnelTravelDuration = TUNNEL_TRAVEL_DURATION;
+  let currentTunnelTime = 0;
+  let inTunnel = false;
   let previousTunnelTicYaw = 0;
   let previousTunnelTicPitch = 0;
   let nextVideoChangeIndex = 0;
@@ -229,6 +232,7 @@ export function createIdyllTunnelTransition(scene, options) {
       0,
       TUNNEL_DURATION,
     );
+    currentTunnelTime = tunnelTime;
     const hasReachedWhiteRoom = tunnelTime >= TUNNEL_DURATION;
     flashDebug.arm(tunnelElapsed);
     if (!suctionSoundStarted && tunnelTime >= FINAL_PULL_START) {
@@ -321,6 +325,7 @@ export function createIdyllTunnelTransition(scene, options) {
       portalClosed = true;
       idyllHidden = true;
     }
+    inTunnel = tunnelEntryPrepared && !hasReachedWhiteRoom;
     if (tunnelEntryPrepared && !hasReachedWhiteRoom) {
       const videoChange = TUNNEL_VIDEO_CHANGES[nextVideoChangeIndex];
       const prepareLead = nextVideoChangeIndex === TUNNEL_VIDEO_CHANGES.length - 1
@@ -328,6 +333,7 @@ export function createIdyllTunnelTransition(scene, options) {
         : VIDEO_PREPARE_LEAD;
       if (videoChange
         && preparedVideoChangeIndex !== nextVideoChangeIndex
+        && !(PERF_DEBUG.disablePreload && isPerfDebugFinalThird(tunnelTime))
         && tunnelEntryElapsed >= videoChange.at - prepareLead) {
         options.tunnel.prepareVideo(videoChange.video);
         preparedVideoChangeIndex = nextVideoChangeIndex;
@@ -341,11 +347,13 @@ export function createIdyllTunnelTransition(scene, options) {
         nextVideoChangeIndex += 1;
         preparedVideoChangeIndex = -1;
       }
-      tunnelCameraTicOffset(tunnelEntryElapsed, tunnelTicOffset);
-      previousTunnelTicYaw = tunnelTicOffset.yaw;
-      previousTunnelTicPitch = tunnelTicOffset.pitch;
-      root.rotation.y = normalizeAngle(root.rotation.y + previousTunnelTicYaw);
-      root.rotation.x = normalizeAngle(root.rotation.x + previousTunnelTicPitch);
+      if (!(PERF_DEBUG.disableTics && isPerfDebugFinalThird(tunnelTime))) {
+        tunnelCameraTicOffset(tunnelEntryElapsed, tunnelTicOffset);
+        previousTunnelTicYaw = tunnelTicOffset.yaw;
+        previousTunnelTicPitch = tunnelTicOffset.pitch;
+        root.rotation.y = normalizeAngle(root.rotation.y + previousTunnelTicYaw);
+        root.rotation.x = normalizeAngle(root.rotation.x + previousTunnelTicPitch);
+      }
     }
     const riftIsVisiblyOpen = rift.update(
       elapsed,
@@ -396,6 +404,13 @@ export function createIdyllTunnelTransition(scene, options) {
   });
 
   return {
+    getPerformanceState() {
+      return {
+        tunnelTime: currentTunnelTime,
+        tunnelProgress: BABYLON.Scalar.Clamp(currentTunnelTime / TUNNEL_DURATION, 0, 1),
+        inTunnel,
+      };
+    },
     start() {
       if (experienceStarted) {
         return;
@@ -424,6 +439,8 @@ export function createIdyllTunnelTransition(scene, options) {
       tunnelSpeedClockOrigin = 0;
       tunnelSpeedClockInitialized = false;
       tunnelTravelDuration = TUNNEL_TRAVEL_DURATION;
+      currentTunnelTime = 0;
+      inTunnel = false;
       previousTunnelTicYaw = 0;
       previousTunnelTicPitch = 0;
       nextVideoChangeIndex = 0;

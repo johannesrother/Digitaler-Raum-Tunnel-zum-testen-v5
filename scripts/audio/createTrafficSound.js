@@ -1,3 +1,5 @@
+import { PERF_DEBUG, isPerfDebugFinalThird } from "../debug/performanceDebug.js";
+
 const TRAFFIC_URL = new URL("../../assets/sounds/Traffic.wav", import.meta.url);
 
 // Progress-based, deliberately irregular fragments. One shared decoder is
@@ -30,6 +32,7 @@ export function createTrafficSound() {
   let unlocking = false;
   let exitFade = null;
   let nextEventIndex = 0;
+  let performanceSuspended = false;
 
   const removeUnlockListeners = () => {
     window.removeEventListener("pointerdown", unlock);
@@ -84,6 +87,13 @@ export function createTrafficSound() {
     });
   };
 
+  const suspendForDiagnostics = () => {
+    if (performanceSuspended) return;
+    performanceSuspended = true;
+    exitFade = null;
+    stopFragment();
+  };
+
   const eventVolumeAt = (event, tunnelTime) => {
     const fadeIn = Math.min(1, (tunnelTime - event.start) / event.fadeIn);
     const fadeOut = Math.min(1, (event.end - tunnelTime) / event.fadeOut);
@@ -93,6 +103,10 @@ export function createTrafficSound() {
 
   return {
     update(tunnelTime) {
+      if (PERF_DEBUG.disableChaosAudio && isPerfDebugFinalThird(tunnelTime)) {
+        suspendForDiagnostics();
+        return;
+      }
       if (exitFade) {
         const progress = Math.min(1, Math.max(0,
           (tunnelTime - exitFade.start) / exitFade.duration));
@@ -116,11 +130,13 @@ export function createTrafficSound() {
       trafficAudio.volume = eventVolumeAt(event, tunnelTime);
     },
     beginExitFade(tunnelTime, duration = 2.2) {
+      if (performanceSuspended) return;
       if (exitFade) return;
       exitFade = { start: tunnelTime, duration, from: trafficAudio.volume };
       if (currentEventIndex < 0) trafficAudio.volume = 0;
     },
     stop() {
+      performanceSuspended = false;
       exitFade = null;
       nextEventIndex = 0;
       stopFragment({ rewind: true });
@@ -138,6 +154,7 @@ export function createTrafficSound() {
         currentTime: trafficAudio.currentTime,
         volume: trafficAudio.volume,
         exitFading: exitFade !== null,
+        performanceSuspended,
       };
     },
   };

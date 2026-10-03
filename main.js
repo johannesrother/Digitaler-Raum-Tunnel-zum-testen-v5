@@ -4,6 +4,7 @@ import { initializeWebXR } from "./scripts/core/initializeWebXR.js";
 import { createExperienceStartScreen } from "./scripts/ui/createExperienceStartScreen.js";
 import { createReexperienceButton } from "./scripts/ui/createReexperienceButton.js";
 import { configureResizeHandling, setStatus } from "./scripts/utils/dom.js";
+import { PERF_DEBUG } from "./scripts/debug/performanceDebug.js";
 
 async function startExperience() {
   const canvas = document.getElementById("renderCanvas");
@@ -11,6 +12,7 @@ async function startExperience() {
   const enterVrButton = document.getElementById("enter-vr");
   const startScreen = createExperienceStartScreen();
   let scene = null;
+  let performanceHud = null;
   const reexperienceState = {
     experienceStarted: false,
     hasEnteredWhiteRoom: false,
@@ -84,6 +86,11 @@ async function startExperience() {
   scene.metadata.transition.attachWebXR(xr);
   reexperienceButton.attachWebXR(scene, xr);
   await scene.whenReadyAsync();
+  if (PERF_DEBUG.enabled) {
+    performanceHud = (await import("./scripts/debug/createPerformanceHud.js"))
+      .createPerformanceHud(scene);
+    performanceHud.attachWebXR(xr);
+  }
   startScreen.setReady(() => {
     // This direct click is also the browser gesture for the existing HTML
     // audio elements. The timeline is reset and begins here at exactly t = 0.
@@ -106,6 +113,7 @@ async function startExperience() {
       scene.metadata.whiteRoomTone.dispose();
       scene.metadata.whiteRoom.dispose();
       scene.metadata.dreamyIdyll.dispose();
+      performanceHud?.dispose();
       reexperienceButton.dispose();
       scene.dispose();
       engine.dispose();

@@ -1,4 +1,5 @@
 import { getIdyllSaturation } from "../environment/createIdyllDesaturation.js";
+import { PERF_DEBUG, isPerfDebugFinalThird } from "../debug/performanceDebug.js";
 
 const VIDEO_OPACITY = 0.66;
 const START_VIDEO = 12;
@@ -13,6 +14,7 @@ export function createTunnelVideoSkin(scene, material) {
   let active = false;
   let tunnelTime = 0;
   let generation = 0;
+  let videoDiagnosticDisabled = false;
 
   class TunnelVideoSkinPlugin extends BABYLON.MaterialPluginBase {
     constructor() {
@@ -26,12 +28,12 @@ export function createTunnelVideoSkin(scene, material) {
     }
 
     getActiveTextures(textures) {
-      textures.push(currentSource.texture);
+      if (currentSource) textures.push(currentSource.texture);
       if (preparedSource) textures.push(preparedSource.texture);
     }
 
     hasTexture(candidate) {
-      return candidate === currentSource.texture || candidate === preparedSource?.texture;
+      return candidate === currentSource?.texture || candidate === preparedSource?.texture;
     }
 
     getUniforms() {
@@ -42,6 +44,10 @@ export function createTunnelVideoSkin(scene, material) {
     }
 
     bindForSubMesh(buffer) {
+      if (!currentSource) {
+        buffer.updateFloat2("tunnelVideoSkinState", 0, getIdyllSaturation(tunnelTime));
+        return;
+      }
       updateSourceFrame(currentSource, active);
       if (preparedSource) updateSourceFrame(preparedSource, active && preparedSource.priming);
       if (requestedSwitch === preparedSource?.number && preparedSource.hasFrame) {
@@ -54,6 +60,10 @@ export function createTunnelVideoSkin(scene, material) {
         getIdyllSaturation(tunnelTime),
       );
       buffer.setTexture("tunnelVideoSampler", currentSource.texture);
+    }
+
+    setVideoEnabled(enabled) {
+      this._enable(enabled);
     }
 
     getCustomCode(stage) {
@@ -107,7 +117,7 @@ export function createTunnelVideoSkin(scene, material) {
     }
   }
 
-  new TunnelVideoSkinPlugin();
+  const videoPlugin = new TunnelVideoSkinPlugin();
 
   const playSource = (source, { prime = false } = {}) => {
     source.priming = prime;
@@ -133,7 +143,9 @@ export function createTunnelVideoSkin(scene, material) {
   };
 
   const prepare = (number) => {
-    if (!active || currentSource.number === number || preparedSource?.number === number) return;
+    if (!active || !currentSource || videoDiagnosticDisabled
+      || (PERF_DEBUG.disablePreload && isPerfDebugFinalThird(tunnelTime))
+      || currentSource.number === number || preparedSource?.number === number) return;
     if (preparedSource) disposeSource(preparedSource);
     preparedSource = createVideoSource(scene, number);
     // Decode and upload one frame, then pause until the authored cut. This
@@ -142,16 +154,45 @@ export function createTunnelVideoSkin(scene, material) {
     playSource(preparedSource, { prime: true });
   };
 
+  const disableVideoForDiagnostics = () => {
+    if (videoDiagnosticDisabled) return;
+    generation += 1;
+    videoDiagnosticDisabled = true;
+    active = false;
+    requestedSwitch = null;
+    if (preparedSource) disposeSource(preparedSource);
+    if (currentSource) disposeSource(currentSource);
+    preparedSource = null;
+    currentSource = null;
+    videoPlugin.setVideoEnabled(false);
+  };
+
+  const switchWithoutPreload = (number) => {
+    generation += 1;
+    requestedSwitch = null;
+    if (preparedSource) disposeSource(preparedSource);
+    if (currentSource) disposeSource(currentSource);
+    preparedSource = null;
+    currentSource = createVideoSource(scene, number);
+    playSource(currentSource);
+  };
+
   const reset = () => {
     generation += 1;
     active = false;
     requestedSwitch = null;
     tunnelTime = 0;
+    if (videoDiagnosticDisabled) {
+      videoDiagnosticDisabled = false;
+      videoPlugin.setVideoEnabled(true);
+    }
     if (preparedSource) {
       disposeSource(preparedSource);
       preparedSource = null;
     }
-    if (currentSource.number === START_VIDEO) {
+    if (!currentSource) {
+      currentSource = createVideoSource(scene, START_VIDEO);
+    } else if (currentSource.number === START_VIDEO) {
       resetSource(currentSource);
     } else {
       disposeSource(currentSource);
@@ -161,12 +202,21 @@ export function createTunnelVideoSkin(scene, material) {
 
   return {
     get opacity() { return VIDEO_OPACITY; },
-    get currentVideo() { return currentSource.number; },
+    get currentVideo() { return currentSource?.number ?? null; },
     get activeDecodeCount() {
-      return Number(currentSource.playing) + Number(preparedSource?.playing ?? false);
+      return Number(currentSource?.playing ?? false) + Number(preparedSource?.playing ?? false);
     },
     update(time) {
       tunnelTime = time;
+      if (PERF_DEBUG.disableVideo && isPerfDebugFinalThird(tunnelTime)) {
+        disableVideoForDiagnostics();
+        return;
+      }
+      if (PERF_DEBUG.disablePreload && isPerfDebugFinalThird(tunnelTime) && preparedSource) {
+        disposeSource(preparedSource);
+        preparedSource = null;
+      }
+      if (!currentSource) return;
       if (active) return;
       active = true;
       generation += 1;
@@ -176,7 +226,11 @@ export function createTunnelVideoSkin(scene, material) {
       prepare(number);
     },
     switchTo(number) {
-      if (!active || currentSource.number === number) return;
+      if (!active || !currentSource || videoDiagnosticDisabled || currentSource.number === number) return;
+      if (PERF_DEBUG.disablePreload && isPerfDebugFinalThird(tunnelTime)) {
+        switchWithoutPreload(number);
+        return;
+      }
       if (preparedSource?.number !== number) prepare(number);
       requestedSwitch = number;
       if (preparedSource?.hasFrame) {
@@ -188,8 +242,9 @@ export function createTunnelVideoSkin(scene, material) {
     dispose() {
       generation += 1;
       if (preparedSource) disposeSource(preparedSource);
-      disposeSource(currentSource);
+      if (currentSource) disposeSource(currentSource);
       preparedSource = null;
+      currentSource = null;
     },
   };
 }

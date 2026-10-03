@@ -1,3 +1,5 @@
+import { PERF_DEBUG, isPerfDebugFinalThird } from "../debug/performanceDebug.js";
+
 const SOURCES = Object.freeze({
   walla: "../../assets/sounds/17112__dcaudio__interior-walla-many-voices-laughing-restaurant.wav",
   greeting: "../../assets/sounds/257045__jagadamba__male-voice-saying-good-day.wav",
@@ -65,6 +67,7 @@ export function createSensoryOverloadSound() {
   let unlocked = false;
   let unlocking = false;
   let exitFade = null;
+  let performanceSuspended = false;
 
   const removeUnlockListeners = () => {
     window.removeEventListener("pointerdown", unlock);
@@ -124,8 +127,19 @@ export function createSensoryOverloadSound() {
     });
   };
 
+  const suspendForDiagnostics = () => {
+    if (performanceSuspended) return;
+    performanceSuspended = true;
+    exitFade = null;
+    channelList.forEach((channel) => stopChannel(channel));
+  };
+
   return {
     update(tunnelTime) {
+      if (PERF_DEBUG.disableChaosAudio && isPerfDebugFinalThird(tunnelTime)) {
+        suspendForDiagnostics();
+        return;
+      }
       if (exitFade) {
         const progress = Math.min(1, Math.max(0,
           (tunnelTime - exitFade.start) / exitFade.duration));
@@ -155,6 +169,7 @@ export function createSensoryOverloadSound() {
       });
     },
     beginExitFade(tunnelTime, duration = 2) {
+      if (performanceSuspended) return;
       if (exitFade) return;
       exitFade = {
         start: tunnelTime,
@@ -163,6 +178,7 @@ export function createSensoryOverloadSound() {
       };
     },
     stop() {
+      performanceSuspended = false;
       exitFade = null;
       channelList.forEach((channel) => {
         channel.nextEvent = 0;
@@ -183,6 +199,7 @@ export function createSensoryOverloadSound() {
         playing: !channel.audio.paused,
         currentTime: channel.audio.currentTime,
         volume: channel.audio.volume,
+        performanceSuspended,
       }]));
     },
   };

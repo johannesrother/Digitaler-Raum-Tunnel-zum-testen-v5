@@ -5,6 +5,7 @@ import {
   getTunnelTwitchInterval,
 } from "./tunnelConfig.js";
 import { createTunnelVideoSkin } from "./createTunnelVideoSkin.js";
+import { PERF_DEBUG, isPerfDebugFinalThird } from "../debug/performanceDebug.js";
 
 const PATH_SAMPLES = 188;
 // Eight extra radial samples are reserved for the higher-curvature fin tips;
@@ -113,7 +114,10 @@ export function createOrganicTunnel(scene, options) {
     if (breathingActive) {
       breathingTime = Math.min(breathingTime + delta, TUNNEL_DURATION);
     }
-    wallDeformation.update(activeTime, breathingTime);
+    const breathingEnabled = !(
+      PERF_DEBUG.disableBreathing && isPerfDebugFinalThird(travelProgress)
+    );
+    wallDeformation.update(activeTime, breathingTime, breathingEnabled);
     // During travel update() owns the progress-based look and light positions.
     // The preview only animates the shell; it must not advance the travel look.
     impulse = Math.max(0, impulse - delta * 2.9);
@@ -171,6 +175,7 @@ export function createOrganicTunnel(scene, options) {
       return {
         currentVideo: videoSkin.currentVideo,
         activeDecodeCount: videoSkin.activeDecodeCount,
+        activeDecoders: videoSkin.activeDecodeCount,
       };
     },
     setSequenceActive(active) {
@@ -443,11 +448,11 @@ function createWallDeformation(scene, mesh, basePositions, indices, vertices) {
   mesh.morphTargetManager = manager;
 
   return {
-    update(time, breathingTime) {
+    update(time, breathingTime, breathingEnabled = true) {
       targets.forEach((target, targetIndex) => {
         target.influence = getPressureWaveInfluence(time, targetIndex);
       });
-      breathingTarget.influence = getBreathingInfluence(breathingTime);
+      breathingTarget.influence = breathingEnabled ? getBreathingInfluence(breathingTime) : 0;
     },
     dispose() {
       manager.dispose();

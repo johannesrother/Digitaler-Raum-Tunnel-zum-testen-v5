@@ -1,3 +1,5 @@
+import { PERF_DEBUG, isPerfDebugFinalThird } from "../debug/performanceDebug.js";
+
 const VOICES_VOLUME = 0.38;
 const VOICES_FADE_IN_SECONDS = 1.5;
 const AUDIO_FADE_STEP_MS = 16;
@@ -29,6 +31,7 @@ export function createVoicesSound() {
   let lateEventIndex = -1;
   let nextLateEventIndex = 0;
   let ending = false;
+  let performanceSuspended = false;
 
   const cancelFade = () => {
     if (fadeFrame !== null) window.clearTimeout(fadeFrame);
@@ -81,10 +84,22 @@ export function createVoicesSound() {
     lateEventIndex = -1;
     nextLateEventIndex = 0;
     ending = false;
+    performanceSuspended = false;
     cancelFade();
     voicesAudio.pause();
     voicesAudio.currentTime = 0;
     voicesAudio.volume = VOICES_VOLUME;
+  };
+
+  const suspendForDiagnostics = () => {
+    if (performanceSuspended) return;
+    performanceSuspended = true;
+    playbackGeneration += 1;
+    active = false;
+    lateEventIndex = -1;
+    cancelFade();
+    voicesAudio.volume = 0;
+    voicesAudio.pause();
   };
 
   const stopLateFragment = () => {
@@ -156,6 +171,10 @@ export function createVoicesSound() {
       });
     },
     update(tunnelTime) {
+      if (PERF_DEBUG.disableChaosAudio && isPerfDebugFinalThird(tunnelTime)) {
+        suspendForDiagnostics();
+        return;
+      }
       if (ending) return;
       while (nextLateEventIndex < VOICES_LATE_EVENTS.length
         && tunnelTime >= VOICES_LATE_EVENTS[nextLateEventIndex].end) {
@@ -172,6 +191,7 @@ export function createVoicesSound() {
       voicesAudio.volume = lateEventVolumeAt(event, tunnelTime);
     },
     fadeOutAndStop(duration = 1.5) {
+      if (performanceSuspended) return;
       ending = true;
       fadeTo(0, duration, true);
     },
@@ -191,6 +211,7 @@ export function createVoicesSound() {
         volume: voicesAudio.volume,
         lateEventIndex,
         ending,
+        performanceSuspended,
       };
     },
   };
