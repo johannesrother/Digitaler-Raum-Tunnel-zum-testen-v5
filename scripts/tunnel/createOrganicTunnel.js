@@ -87,33 +87,35 @@ const FIN_FAMILIES = [
  */
 export function createOrganicTunnel(scene, options) {
   const route = createTunnelRoute(options.entrance);
-  const { mesh, wallDeformation } = createTunnelShell(scene, route);
+  const { mesh, wallDeformation, sectionFrames } = createTunnelShell(scene, route);
   const material = createTunnelMaterial(scene);
   mesh.material = material;
   const videoSkin = createTunnelVideoSkin(scene, material);
   mesh.isPickable = false;
   mesh.receiveShadows = false;
-  const lights = createTunnelLights(scene, [mesh], route);
+  const lights = createTunnelLights(scene, [mesh], sectionFrames);
   let nextImpulseAt = 12.7;
   let impulse = 0;
   let activeTime = 0;
+  let travelProgress = 0;
   let breathingTime = 0;
   let breathingActive = false;
   let sequenceActive = false;
   let previousFrameTime = performance.now();
+  updateTunnelMembraneMaterial(material, 0);
+  updateTunnelLights(lights, 0, 0);
   const observer = scene.onBeforeRenderObservable.add(() => {
     const frameTime = performance.now();
-    const delta = Math.min((frameTime - previousFrameTime) / 1000, 0.04);
+    const delta = Math.max(0, (frameTime - previousFrameTime) / 1000);
     previousFrameTime = frameTime;
-    if (sequenceActive) {
-      activeTime = Math.min(activeTime + delta, TUNNEL_DURATION);
-    }
+    if (!sequenceActive || !lights.enabled) return;
+    activeTime = Math.min(activeTime + delta, TUNNEL_DURATION);
     if (breathingActive) {
       breathingTime = Math.min(breathingTime + delta, TUNNEL_DURATION);
     }
     wallDeformation.update(activeTime, breathingTime);
-    updateTunnelMembraneMaterial(material, activeTime);
-    updateTunnelLights(lights, route, activeTime, impulse);
+    // During travel update() owns the progress-based look and light positions.
+    // The preview only animates the shell; it must not advance the travel look.
     impulse = Math.max(0, impulse - delta * 2.9);
   });
 
@@ -124,13 +126,21 @@ export function createOrganicTunnel(scene, options) {
       return getTunnelSectionFrame(route, progress).verticalClearance;
     },
     setEnabled(enabled) {
+      // The world reset can restore the mesh separately from its light rig.
+      // Always enforce visibility, even if the expensive rig reset is a no-op.
       mesh.setEnabled(enabled);
+      if (lights.enabled === enabled) return;
       if (!enabled) videoSkin.reset();
       lights.enabled = enabled;
-      lights.points.forEach((light) => light.setEnabled(enabled));
-      lights.fill.setEnabled(enabled);
-      lights.entryBacklight.setEnabled(enabled);
-      lights.whiteRoomSpill.setEnabled(enabled);
+      if (enabled) {
+        lights.mode = null;
+        prioritizeTunnelLights(lights, travelProgress);
+      } else {
+        lights.points.forEach((light) => light.setEnabled(false));
+        lights.fill.setEnabled(false);
+        lights.entryBacklight.setEnabled(false);
+        lights.whiteRoomSpill.setEnabled(false);
+      }
     },
     update(tunnelTime) {
       videoSkin.update(tunnelTime);
@@ -139,17 +149,17 @@ export function createOrganicTunnel(scene, options) {
       // The walls may already be visible and moving through the rift. Keep
       // that motion continuous when the travel clock begins instead of
       // resetting the deformation phase to zero on the crossing frame.
-      activeTime = Math.max(activeTime, BABYLON.Scalar.Clamp(tunnelTime, 0, TUNNEL_DURATION));
-      updateTunnelMembraneMaterial(material, activeTime);
-      const look = getTunnelLook(activeTime);
-      if (activeTime >= nextImpulseAt) {
+      travelProgress = BABYLON.Scalar.Clamp(tunnelTime, 0, TUNNEL_DURATION);
+      updateTunnelMembraneMaterial(material, travelProgress);
+      const look = getTunnelLook(travelProgress);
+      if (travelProgress >= nextImpulseAt) {
         impulse = 1;
         // Irrational-looking, deterministic intervals keep impulses rare and
         // non-musical without a per-frame random system.
-        const interval = getTunnelTwitchInterval(activeTime);
+        const interval = getTunnelTwitchInterval(travelProgress);
         nextImpulseAt += interval > 0 ? interval * (0.72 + ((nextImpulseAt * 1.73) % 0.58)) : 9;
       }
-      updateTunnelLights(lights, route, activeTime, impulse * (0.25 + look.detail * 0.75));
+      updateTunnelLights(lights, travelProgress, impulse * (0.25 + look.detail * 0.75));
     },
     prepareVideo(number) {
       videoSkin.prepare(number);
@@ -164,21 +174,24 @@ export function createOrganicTunnel(scene, options) {
       };
     },
     setSequenceActive(active) {
+      if (sequenceActive === active) return;
       sequenceActive = active;
       if (!active) {
         videoSkin.reset();
         activeTime = 0;
+        travelProgress = 0;
         breathingTime = 0;
         breathingActive = false;
         impulse = 0;
         updateTunnelMembraneMaterial(material, 0);
-        updateTunnelLights(lights, route, 0, 0);
+        updateTunnelLights(lights, 0, 0);
       }
     },
     reset() {
       videoSkin.reset();
       sequenceActive = false;
       activeTime = 0;
+      travelProgress = 0;
       breathingTime = 0;
       breathingActive = false;
       impulse = 0;
@@ -186,7 +199,7 @@ export function createOrganicTunnel(scene, options) {
       previousFrameTime = performance.now();
       wallDeformation.update(0, 0);
       updateTunnelMembraneMaterial(material, 0);
-      updateTunnelLights(lights, route, 0, 0);
+      updateTunnelLights(lights, 0, 0);
     },
     dispose() {
       videoSkin.dispose();
@@ -291,12 +304,15 @@ function createTunnelShell(scene, route) {
   const uvs = [];
   const colors = [];
   const deformationVertices = [];
+  const sectionFrames = [];
 
   for (let section = 0; section <= PATH_SAMPLES; section += 1) {
     const progress = section / PATH_SAMPLES;
+    const sectionFrame = getTunnelSectionFrame(route, progress);
+    sectionFrames.push(sectionFrame);
     const {
       center, lateral, vertical, diameter, look, time, verticalClearance,
-    } = getTunnelSectionFrame(route, progress);
+    } = sectionFrame;
 
     for (let side = 0; side < PROFILE_SIDES; side += 1) {
       const angle = (side / PROFILE_SIDES) * Math.PI * 2;
@@ -341,6 +357,7 @@ function createTunnelShell(scene, route) {
   return {
     mesh,
     wallDeformation: createWallDeformation(scene, mesh, positions, indices, deformationVertices),
+    sectionFrames,
   };
 }
 
@@ -728,8 +745,8 @@ function updateTunnelMembraneMaterial(material, time) {
   );
 }
 
-function createTunnelLights(scene, meshes, route) {
-  const entranceFrame = getTunnelSectionFrame(route, 0);
+function createTunnelLights(scene, meshes, sectionFrames) {
+  const entranceFrame = sectionFrames[0];
   const entryBacklightPosition = entranceFrame.center
     .subtract(entranceFrame.tangent.scale(1.6));
   entryBacklightPosition.addInPlace(entranceFrame.vertical.scale(0.08));
@@ -746,7 +763,7 @@ function createTunnelLights(scene, meshes, route) {
   entryBacklight.intensity = ENTRY_BACKLIGHT_MAX_INTENSITY;
   entryBacklight.includedOnlyMeshes.push(...meshes);
   const points = GRAZING_LIGHT_RIGS.map((rig, index) => {
-    const frame = getTunnelSectionFrame(route, 0);
+    const frame = entranceFrame;
     const position = frame.center.clone();
     // Each rig is later kept alongside the moving route position.  Starting
     // it off-axis ensures it rakes across the wall instead of becoming a
@@ -774,7 +791,7 @@ function createTunnelLights(scene, meshes, route) {
   fill.groundColor = BABYLON.Color3.FromHexString("#321d26");
   fill.intensity = 0.18;
   fill.includedOnlyMeshes.push(...meshes);
-  const exitFrame = getTunnelSectionFrame(route, 1);
+  const exitFrame = sectionFrames.at(-1);
   const spillPosition = exitFrame.center.add(exitFrame.tangent.scale(3.1));
   // Positioned just beyond the existing tunnel exit, this broad cone points
   // back into the tunnel and reads as light spilling out of the White Room.
@@ -796,11 +813,24 @@ function createTunnelLights(scene, meshes, route) {
     entryBacklight,
     whiteRoomSpill,
     rigs: GRAZING_LIGHT_RIGS,
+    rigColors: GRAZING_LIGHT_RIGS.map((rig) => BABYLON.Color3.FromHexString(rig.color)),
+    colors: {
+      warmEntryLight: BABYLON.Color3.FromHexString("#ffe2bd"),
+      coolTunnelFill: BABYLON.Color3.FromHexString("#aeb7c4"),
+      warmEntryGround: BABYLON.Color3.FromHexString("#9a7659"),
+      coolTunnelGround: BABYLON.Color3.FromHexString("#321d26"),
+      lateRed: BABYLON.Color3.FromHexString("#67252b"),
+      tunnelScratch: new BABYLON.Color3(),
+    },
+    sectionFrames,
+    frameScratch: createFrameScratch(),
+    viewerFrameScratch: createFrameScratch(),
+    mode: null,
     enabled: true,
   };
 }
 
-function updateTunnelLights(lights, route, time, impulse) {
+function updateTunnelLights(lights, time, impulse) {
   const look = getTunnelLook(time);
   const entryTransition = smoothstep((time - 7) / 23);
   const entryWarmth = 1 - entryTransition;
@@ -808,14 +838,13 @@ function updateTunnelLights(lights, route, time, impulse) {
   // readable relief shortly before the White Room aperture.
   const lateVisibility = smoothstep((time - LATE_TUNNEL_VISIBILITY_START) / (TUNNEL_DURATION - LATE_TUNNEL_VISIBILITY_START));
   const whiteRoomSpillProgress = smoothstep((time - WHITE_ROOM_SPILL_START) / (TUNNEL_DURATION - WHITE_ROOM_SPILL_START));
-  const warmEntryLight = BABYLON.Color3.FromHexString("#ffe2bd");
-  const coolTunnelFill = BABYLON.Color3.FromHexString("#aeb7c4");
-  const warmEntryGround = BABYLON.Color3.FromHexString("#9a7659");
-  const coolTunnelGround = BABYLON.Color3.FromHexString("#321d26");
+  const {
+    warmEntryLight, coolTunnelFill, warmEntryGround, coolTunnelGround, lateRed, tunnelScratch,
+  } = lights.colors;
   // Daylight from the idyll initially reaches into the shell, then yields to
   // the existing side rakes and the White-Room spill without a hard handoff.
-  lights.fill.diffuse = BABYLON.Color3.Lerp(warmEntryLight, coolTunnelFill, entryTransition);
-  lights.fill.groundColor = BABYLON.Color3.Lerp(warmEntryGround, coolTunnelGround, entryTransition);
+  lerpColorToRef(warmEntryLight, coolTunnelFill, entryTransition, lights.fill.diffuse);
+  lerpColorToRef(warmEntryGround, coolTunnelGround, entryTransition, lights.fill.groundColor);
   const tunnelFill = (0.14 + look.light * 0.13 + lateVisibility * 0.14) * FILL_LIGHT_BOOST;
   lights.fill.intensity = BABYLON.Scalar.Lerp(0.43, tunnelFill, entryTransition);
   // The spatial source remains at the entrance while only its local output
@@ -827,19 +856,29 @@ function updateTunnelLights(lights, route, time, impulse) {
   lights.points.forEach((light, index) => {
     const rig = lights.rigs[index];
     const lightTime = BABYLON.Scalar.Clamp(time + rig.ahead, 0, TUNNEL_DURATION);
-    const frame = getTunnelSectionFrame(route, lightTime / TUNNEL_DURATION);
-    const sideOffset = Math.max(0.34, getTunnelDiameter(lightTime) * 0.29) * Math.sign(rig.side);
+    const frame = sampleTunnelSectionFrame(
+      lights.sectionFrames,
+      lightTime / TUNNEL_DURATION,
+      lights.frameScratch,
+    );
+    const sideOffset = Math.max(0.34, frame.diameter * 0.29) * Math.sign(rig.side);
     light.position.copyFrom(frame.center);
-    light.position.addInPlace(frame.lateral.scale(sideOffset));
-    light.position.addInPlace(frame.vertical.scale(rig.height));
+    light.position.x += frame.lateral.x * sideOffset + frame.vertical.x * rig.height;
+    light.position.y += frame.lateral.y * sideOffset + frame.vertical.y * rig.height;
+    light.position.z += frame.lateral.z * sideOffset + frame.vertical.z * rig.height;
     light.range = rig.range * BABYLON.Scalar.Lerp(1, LATE_TUNNEL_RANGE_BOOST, lateVisibility);
     if (rig.returnRake) {
       // These broad spots sit beside a later tunnel section and aim back down
       // the route, so their grazing highlight returns toward the traveller.
       const viewerTime = BABYLON.Scalar.Clamp(time - rig.returnRake, 0, TUNNEL_DURATION);
-      const viewerFrame = getTunnelSectionFrame(route, viewerTime / TUNNEL_DURATION);
-      const viewerPosition = viewerFrame.center.clone();
-      light.direction.copyFrom(viewerPosition.subtract(light.position).normalize());
+      const viewerFrame = sampleTunnelSectionFrame(
+        lights.sectionFrames,
+        viewerTime / TUNNEL_DURATION,
+        lights.viewerFrameScratch,
+      );
+      light.direction.copyFrom(viewerFrame.center);
+      light.direction.subtractInPlace(light.position);
+      light.direction.normalize();
     }
     // The entry carries a little more soft daylight. It drains gradually
     // rather than switching off, leaving the grazing pattern to define later
@@ -847,11 +886,11 @@ function updateTunnelLights(lights, route, time, impulse) {
     const visibility = 0.66 + look.light * 0.42 + lateVisibility * 0.2 + entryWarmth * 0.22;
     const pulse = index === 2 ? impulse * 0.16 : 0;
     light.intensity = rig.intensity * visibility * GRAZING_LIGHT_BOOST + pulse;
-    const baseColor = BABYLON.Color3.FromHexString(rig.color);
+    const baseColor = lights.rigColors[index];
     const tunnelColor = index >= 3
-      ? BABYLON.Color3.Lerp(baseColor, BABYLON.Color3.FromHexString("#67252b"), smoothstep((time - 43) / 9))
+      ? lerpColorToRef(baseColor, lateRed, smoothstep((time - 43) / 9), tunnelScratch)
       : baseColor;
-    light.diffuse = BABYLON.Color3.Lerp(warmEntryLight, tunnelColor, entryTransition);
+    lerpColorToRef(warmEntryLight, tunnelColor, entryTransition, light.diffuse);
   });
   prioritizeTunnelLights(lights, time);
 }
@@ -860,15 +899,46 @@ function prioritizeTunnelLights(lights, time) {
   if (!lights.enabled) return;
   const early = time < 20;
   const late = time >= WHITE_ROOM_SPILL_START;
-  const activeGrazing = early
-    ? [0, 1]
-    : late
-      ? [2, 5]
-      : [1, 2, 5];
+  const mode = early ? "early" : late ? "late" : "middle";
+  if (lights.mode === mode) return;
+  lights.mode = mode;
   lights.entryBacklight.setEnabled(early);
   lights.fill.setEnabled(true);
-  lights.points.forEach((light, index) => light.setEnabled(activeGrazing.includes(index)));
+  lights.points.forEach((light, index) => light.setEnabled(
+    early ? index === 0 || index === 1
+      : late ? index === 2 || index === 5
+        : index === 1 || index === 2 || index === 5,
+  ));
   lights.whiteRoomSpill.setEnabled(late);
+}
+
+function createFrameScratch() {
+  return {
+    center: new BABYLON.Vector3(),
+    lateral: new BABYLON.Vector3(),
+    vertical: new BABYLON.Vector3(),
+    diameter: 0,
+  };
+}
+
+function sampleTunnelSectionFrame(frames, progress, target) {
+  const floatIndex = BABYLON.Scalar.Clamp(progress, 0, 1) * PATH_SAMPLES;
+  const index = Math.min(PATH_SAMPLES - 1, Math.floor(floatIndex));
+  const amount = floatIndex - index;
+  const first = frames[index];
+  const second = frames[index + 1];
+  BABYLON.Vector3.LerpToRef(first.center, second.center, amount, target.center);
+  BABYLON.Vector3.LerpToRef(first.lateral, second.lateral, amount, target.lateral);
+  BABYLON.Vector3.LerpToRef(first.vertical, second.vertical, amount, target.vertical);
+  target.diameter = BABYLON.Scalar.Lerp(first.diameter, second.diameter, amount);
+  return target;
+}
+
+function lerpColorToRef(from, to, amount, target) {
+  target.r = BABYLON.Scalar.Lerp(from.r, to.r, amount);
+  target.g = BABYLON.Scalar.Lerp(from.g, to.g, amount);
+  target.b = BABYLON.Scalar.Lerp(from.b, to.b, amount);
+  return target;
 }
 
 function createTexture(scene, url, tiling, gammaSpace) {

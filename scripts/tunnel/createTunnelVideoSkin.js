@@ -2,6 +2,8 @@ import { getIdyllSaturation } from "../environment/createIdyllDesaturation.js";
 
 const VIDEO_OPACITY = 0.66;
 const START_VIDEO = 12;
+const QUEST_VIDEO_NUMBERS = new Set([2, 25, 16]);
+const USE_QUEST_VIDEO_ASSETS = /OculusBrowser|Quest/i.test(navigator.userAgent);
 
 /** Reuses one full-shell material mapping with at most current + prepared video. */
 export function createTunnelVideoSkin(scene, material) {
@@ -111,8 +113,9 @@ export function createTunnelVideoSkin(scene, material) {
     source.playing = true;
     const run = generation;
     source.video.play().catch((error) => {
+      if (run !== generation || source.disposed) return;
       source.playing = false;
-      if (active && run === generation) {
+      if (active) {
         console.error(`TUNNEL VIDEO ${source.number} PLAY ERROR`, error);
       }
     });
@@ -191,7 +194,11 @@ function createVideoSource(scene, number) {
   video.loop = true;
   video.playsInline = true;
   video.preload = "auto";
-  video.src = new URL(`../../assets/videos/${number}.mp4`, import.meta.url).href;
+  const questOptimized = USE_QUEST_VIDEO_ASSETS && QUEST_VIDEO_NUMBERS.has(number);
+  const assetPath = questOptimized
+    ? `../../assets/videos/quest/${number}.mp4`
+    : `../../assets/videos/${number}.mp4`;
+  video.src = new URL(assetPath, import.meta.url).href;
   const texture = new BABYLON.VideoTexture(
     `tunnel-interior-video-${number}`,
     video,
@@ -203,17 +210,40 @@ function createVideoSource(scene, number) {
   );
   texture.wrapU = BABYLON.Texture.CLAMP_ADDRESSMODE;
   texture.wrapV = BABYLON.Texture.CLAMP_ADDRESSMODE;
-  return { number, video, texture, hasFrame: false, playing: false };
+  const source = { number, video, texture, hasFrame: false, playing: false,
+    disposed: false, frameRevision: 0, uploadedRevision: -1, frameCallback: null };
+  source.markFrame = () => { source.frameRevision += 1; };
+  video.addEventListener("loadeddata", source.markFrame);
+  video.addEventListener("seeked", source.markFrame);
+  if (typeof video.requestVideoFrameCallback === "function") {
+    const onFrame = () => {
+      if (source.disposed) return;
+      source.markFrame();
+      source.frameCallback = video.requestVideoFrameCallback(onFrame);
+    };
+    source.frameCallback = video.requestVideoFrameCallback(onFrame);
+  }
+  return source;
 }
 
 function updateSourceFrame(source, shouldUpdate) {
   if (!shouldUpdate || source.video.readyState < 2 || !source.texture.isReady()) return;
+  // Stereo eyes and high-refresh headsets can bind the same decoded frame
+  // several times. Upload only new video frames where the browser exposes
+  // them; retain the original per-render fallback on older implementations.
+  const revision = source.frameCallback !== null
+    ? source.frameRevision
+    : source.video.getVideoPlaybackQuality?.().totalVideoFrames;
+  if (source.hasFrame && revision !== undefined && revision === source.uploadedRevision) return;
   source.texture.updateTexture(true);
+  source.uploadedRevision = revision;
   source.hasFrame = true;
 }
 
 function resetSource(source) {
   source.hasFrame = false;
+  source.uploadedRevision = -1;
+  source.markFrame();
   source.playing = false;
   source.video.autoplay = false;
   source.video.pause();
@@ -221,6 +251,10 @@ function resetSource(source) {
 }
 
 function disposeSource(source) {
+  source.disposed = true;
+  if (source.frameCallback !== null) source.video.cancelVideoFrameCallback(source.frameCallback);
+  source.video.removeEventListener("loadeddata", source.markFrame);
+  source.video.removeEventListener("seeked", source.markFrame);
   source.playing = false;
   source.video.pause();
   source.texture.dispose();
