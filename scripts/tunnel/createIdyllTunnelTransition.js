@@ -21,6 +21,7 @@ const PORTAL_VISIBLE_THRESHOLD = 0.01;
 const RIFT_APERTURE_MASK_DEPTH = -0.145;
 const ENTRY_ROUTE_EASE_DURATION = 0.75;
 const VIDEO_PREPARE_LEAD = 1.5;
+const FINAL_VIDEO_PREPARE_LEAD = 5.5;
 const DEG_TO_RAD = Math.PI / 180;
 const NON_XR_CEILING_CLEARANCE = 0.14;
 const TUNNEL_TIC_EVENTS = [
@@ -142,6 +143,13 @@ export function createIdyllTunnelTransition(scene, options) {
   let nextVideoChangeIndex = 0;
   let preparedVideoChangeIndex = -1;
   const tunnelTicOffset = { yaw: 0, pitch: 0 };
+  const idyllUpdateState = {
+    formation: 0,
+    reveal: 0,
+    entryDistance: 0,
+    entered: false,
+  };
+  const whiteRoomArrivalPosition = new BABYLON.Vector3();
   let experienceStarted = false;
   let previousFrameTime = performance.now();
   const initialHeading = headingFrom(options.initialForward);
@@ -276,7 +284,13 @@ export function createIdyllTunnelTransition(scene, options) {
         1.45,
       );
       const arrival = finalReleaseProgress(whiteElapsed / WHITE_ROOM_ARRIVAL_DURATION, releaseStartSlope);
-      root.position.copyFrom(BABYLON.Vector3.Lerp(tunnelRoute.endPosition, options.whiteRoom.finalPosition, arrival));
+      BABYLON.Vector3.LerpToRef(
+        tunnelRoute.endPosition,
+        options.whiteRoom.finalPosition,
+        arrival,
+        whiteRoomArrivalPosition,
+      );
+      root.position.copyFrom(whiteRoomArrivalPosition);
       if (!previousWorldHidden && whiteElapsed >= WHITE_ROOM_ARRIVAL_DURATION) {
         isolatePreviousWorld(options);
         previousWorldHidden = true;
@@ -309,9 +323,12 @@ export function createIdyllTunnelTransition(scene, options) {
     }
     if (tunnelEntryPrepared && !hasReachedWhiteRoom) {
       const videoChange = TUNNEL_VIDEO_CHANGES[nextVideoChangeIndex];
+      const prepareLead = nextVideoChangeIndex === TUNNEL_VIDEO_CHANGES.length - 1
+        ? FINAL_VIDEO_PREPARE_LEAD
+        : VIDEO_PREPARE_LEAD;
       if (videoChange
         && preparedVideoChangeIndex !== nextVideoChangeIndex
-        && tunnelEntryElapsed >= videoChange.at - VIDEO_PREPARE_LEAD) {
+        && tunnelEntryElapsed >= videoChange.at - prepareLead) {
         options.tunnel.prepareVideo(videoChange.video);
         preparedVideoChangeIndex = nextVideoChangeIndex;
       }
@@ -352,12 +369,11 @@ export function createIdyllTunnelTransition(scene, options) {
     }
 
     // Read-only visual accompaniment of the authoritative states above.
-    options.onIdyllUpdate?.(elapsed, RIFT_FORM_START, {
-      formation: riftFormation,
-      reveal: tunnelReveal,
-      entryDistance: riftEntryDistance,
-      entered: tunnelEntryPrepared,
-    });
+    idyllUpdateState.formation = riftFormation;
+    idyllUpdateState.reveal = tunnelReveal;
+    idyllUpdateState.entryDistance = riftEntryDistance;
+    idyllUpdateState.entered = tunnelEntryPrepared;
+    options.onIdyllUpdate?.(elapsed, RIFT_FORM_START, idyllUpdateState);
 
     debug.update(
       elapsed,

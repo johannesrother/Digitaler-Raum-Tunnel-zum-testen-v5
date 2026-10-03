@@ -29,6 +29,7 @@ export function createTrafficSound() {
   let unlocked = false;
   let unlocking = false;
   let exitFade = null;
+  let nextEventIndex = 0;
 
   const removeUnlockListeners = () => {
     window.removeEventListener("pointerdown", unlock);
@@ -100,15 +101,19 @@ export function createTrafficSound() {
         return;
       }
 
-      const eventIndex = TRAFFIC_EVENTS.findIndex((event) => (
-        tunnelTime >= event.start && tunnelTime < event.end
-      ));
-      if (eventIndex < 0) {
+      while (nextEventIndex < TRAFFIC_EVENTS.length
+        && tunnelTime >= TRAFFIC_EVENTS[nextEventIndex].end) {
+        if (currentEventIndex === nextEventIndex) stopFragment();
+        nextEventIndex += 1;
+      }
+      const event = TRAFFIC_EVENTS[nextEventIndex];
+      if (!event || tunnelTime < event.start) {
         if (currentEventIndex >= 0) stopFragment();
         return;
       }
+      const eventIndex = nextEventIndex;
       if (currentEventIndex !== eventIndex) startFragment(eventIndex);
-      trafficAudio.volume = eventVolumeAt(TRAFFIC_EVENTS[eventIndex], tunnelTime);
+      trafficAudio.volume = eventVolumeAt(event, tunnelTime);
     },
     beginExitFade(tunnelTime, duration = 2.2) {
       if (exitFade) return;
@@ -117,6 +122,7 @@ export function createTrafficSound() {
     },
     stop() {
       exitFade = null;
+      nextEventIndex = 0;
       stopFragment({ rewind: true });
     },
     dispose() {

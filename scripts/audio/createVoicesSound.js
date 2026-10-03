@@ -27,6 +27,7 @@ export function createVoicesSound() {
   let fadeFrame = null;
   let playbackGeneration = 0;
   let lateEventIndex = -1;
+  let nextLateEventIndex = 0;
   let ending = false;
 
   const cancelFade = () => {
@@ -78,6 +79,7 @@ export function createVoicesSound() {
     playbackGeneration += 1;
     active = false;
     lateEventIndex = -1;
+    nextLateEventIndex = 0;
     ending = false;
     cancelFade();
     voicesAudio.pause();
@@ -155,15 +157,19 @@ export function createVoicesSound() {
     },
     update(tunnelTime) {
       if (ending) return;
-      const eventIndex = VOICES_LATE_EVENTS.findIndex((event) => (
-        tunnelTime >= event.start && tunnelTime < event.end
-      ));
-      if (eventIndex < 0) {
+      while (nextLateEventIndex < VOICES_LATE_EVENTS.length
+        && tunnelTime >= VOICES_LATE_EVENTS[nextLateEventIndex].end) {
+        if (lateEventIndex === nextLateEventIndex) stopLateFragment();
+        nextLateEventIndex += 1;
+      }
+      const event = VOICES_LATE_EVENTS[nextLateEventIndex];
+      if (!event || tunnelTime < event.start) {
         if (lateEventIndex >= 0) stopLateFragment();
         return;
       }
+      const eventIndex = nextLateEventIndex;
       if (lateEventIndex !== eventIndex) startLateFragment(eventIndex);
-      voicesAudio.volume = lateEventVolumeAt(VOICES_LATE_EVENTS[eventIndex], tunnelTime);
+      voicesAudio.volume = lateEventVolumeAt(event, tunnelTime);
     },
     fadeOutAndStop(duration = 1.5) {
       ending = true;

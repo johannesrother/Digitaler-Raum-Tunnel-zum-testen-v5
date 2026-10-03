@@ -43,8 +43,9 @@ export function createTunnelVideoSkin(scene, material) {
 
     bindForSubMesh(buffer) {
       updateSourceFrame(currentSource, active);
-      if (preparedSource) updateSourceFrame(preparedSource, active);
+      if (preparedSource) updateSourceFrame(preparedSource, active && preparedSource.priming);
       if (requestedSwitch === preparedSource?.number && preparedSource.hasFrame) {
+        if (!preparedSource.playing) playSource(preparedSource);
         promotePreparedSource();
       }
       buffer.updateFloat2(
@@ -108,7 +109,8 @@ export function createTunnelVideoSkin(scene, material) {
 
   new TunnelVideoSkinPlugin();
 
-  const playSource = (source) => {
+  const playSource = (source, { prime = false } = {}) => {
+    source.priming = prime;
     source.video.autoplay = true;
     source.playing = true;
     const run = generation;
@@ -134,7 +136,10 @@ export function createTunnelVideoSkin(scene, material) {
     if (!active || currentSource.number === number || preparedSource?.number === number) return;
     if (preparedSource) disposeSource(preparedSource);
     preparedSource = createVideoSource(scene, number);
-    playSource(preparedSource);
+    // Decode and upload one frame, then pause until the authored cut. This
+    // retains a ready first frame without running two video decoders throughout
+    // the densest late-tunnel audio section.
+    playSource(preparedSource, { prime: true });
   };
 
   const reset = () => {
@@ -174,7 +179,10 @@ export function createTunnelVideoSkin(scene, material) {
       if (!active || currentSource.number === number) return;
       if (preparedSource?.number !== number) prepare(number);
       requestedSwitch = number;
-      if (preparedSource?.hasFrame) promotePreparedSource();
+      if (preparedSource?.hasFrame) {
+        if (!preparedSource.playing) playSource(preparedSource);
+        promotePreparedSource();
+      }
     },
     reset,
     dispose() {
@@ -210,7 +218,7 @@ function createVideoSource(scene, number) {
   );
   texture.wrapU = BABYLON.Texture.CLAMP_ADDRESSMODE;
   texture.wrapV = BABYLON.Texture.CLAMP_ADDRESSMODE;
-  const source = { number, video, texture, hasFrame: false, playing: false,
+  const source = { number, video, texture, hasFrame: false, playing: false, priming: false,
     disposed: false, frameRevision: 0, uploadedRevision: -1, frameCallback: null };
   source.markFrame = () => { source.frameRevision += 1; };
   video.addEventListener("loadeddata", source.markFrame);
@@ -238,6 +246,11 @@ function updateSourceFrame(source, shouldUpdate) {
   source.texture.updateTexture(true);
   source.uploadedRevision = revision;
   source.hasFrame = true;
+  if (source.priming) {
+    source.priming = false;
+    source.playing = false;
+    source.video.pause();
+  }
 }
 
 function resetSource(source) {
@@ -245,6 +258,7 @@ function resetSource(source) {
   source.uploadedRevision = -1;
   source.markFrame();
   source.playing = false;
+  source.priming = false;
   source.video.autoplay = false;
   source.video.pause();
   if (source.video.currentTime !== 0) source.video.currentTime = 0;
@@ -256,6 +270,7 @@ function disposeSource(source) {
   source.video.removeEventListener("loadeddata", source.markFrame);
   source.video.removeEventListener("seeked", source.markFrame);
   source.playing = false;
+  source.priming = false;
   source.video.pause();
   source.texture.dispose();
   source.video.removeAttribute("src");

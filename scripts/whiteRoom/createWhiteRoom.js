@@ -31,8 +31,7 @@ export function createWhiteRoom(scene, tunnelEnd, exitDirection) {
       // Keep it hidden until the existing handoff completes under pure white.
       voidMesh.setEnabled(false);
       material.alpha = blend;
-      material.transparencyMode = BABYLON.Material.MATERIAL_ALPHABLEND;
-      scene.clearColor = new BABYLON.Color4(
+      scene.clearColor.copyFromFloats(
         BABYLON.Scalar.Lerp(originalClearColor.r, 1, blend),
         BABYLON.Scalar.Lerp(originalClearColor.g, 1, blend),
         BABYLON.Scalar.Lerp(originalClearColor.b, 1, blend),
@@ -47,11 +46,11 @@ export function createWhiteRoom(scene, tunnelEnd, exitDirection) {
     reset() {
       voidMesh.setEnabled(false);
       material.alpha = 0;
-      scene.clearColor = originalClearColor.clone();
+      scene.clearColor.copyFrom(originalClearColor);
       scene.fogDensity = originalFogDensity;
     },
     dispose() {
-      scene.clearColor = originalClearColor;
+      scene.clearColor.copyFrom(originalClearColor);
       scene.fogDensity = originalFogDensity;
       material.dispose();
       voidMesh.dispose();
@@ -66,5 +65,6 @@ function createVoidMaterial(scene) {
   material.specularColor = BABYLON.Color3.Black();
   material.disableLighting = true;
   material.backFaceCulling = false;
+  material.transparencyMode = BABYLON.Material.MATERIAL_ALPHABLEND;
   return material;
 }

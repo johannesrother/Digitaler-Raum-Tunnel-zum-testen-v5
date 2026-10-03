@@ -44,14 +44,24 @@ export const SENSORY_OVERLOAD_EVENTS = Object.freeze([
 
 /** Four reusable sources; all scheduling is tied to tunnel progress. */
 export function createSensoryOverloadSound() {
-  const channels = Object.fromEntries(Object.entries(SOURCES).map(([name, relativeUrl]) => {
+  const channelList = Object.entries(SOURCES).map(([name, relativeUrl]) => {
     const audio = new Audio(new URL(relativeUrl, import.meta.url).href);
     audio.preload = "auto";
     audio.loop = false;
     audio.volume = 0;
     audio.load();
-    return [name, { audio, eventIndex: -1, generation: 0 }];
-  }));
+    return {
+      name,
+      audio,
+      eventIndex: -1,
+      generation: 0,
+      nextEvent: 0,
+      eventIndexes: SENSORY_OVERLOAD_EVENTS.reduce((indexes, event, index) => {
+        if (event.source === name) indexes.push(index);
+        return indexes;
+      }, []),
+    };
+  });
   let unlocked = false;
   let unlocking = false;
   let exitFade = null;
@@ -64,19 +74,17 @@ export function createSensoryOverloadSound() {
   };
 
   const unlock = async () => {
-    if (unlocked || unlocking || hasActiveChannel(channels)) return;
+    if (unlocked || unlocking || hasActiveChannel(channelList)) return;
     unlocking = true;
-    const generations = Object.fromEntries(Object.entries(channels).map(
-      ([name, channel]) => [name, channel.generation],
-    ));
+    const generations = channelList.map((channel) => channel.generation);
     try {
-      const results = await Promise.allSettled(Object.values(channels).map(async ({ audio }) => {
+      const results = await Promise.allSettled(channelList.map(async ({ audio }) => {
         audio.volume = 0;
         await audio.play();
       }));
-      if (hasActiveChannel(channels)) return;
-      Object.entries(channels).forEach(([name, channel]) => {
-        if (channel.generation !== generations[name]) return;
+      if (hasActiveChannel(channelList)) return;
+      channelList.forEach((channel, index) => {
+        if (channel.generation !== generations[index]) return;
         channel.audio.pause();
         channel.audio.currentTime = 0;
       });
@@ -122,23 +130,28 @@ export function createSensoryOverloadSound() {
         const progress = Math.min(1, Math.max(0,
           (tunnelTime - exitFade.start) / exitFade.duration));
         const fade = 1 - smoothstep(progress);
-        Object.entries(channels).forEach(([name, channel]) => {
-          channel.audio.volume = exitFade.volumes[name] * fade;
+        channelList.forEach((channel, index) => {
+          channel.audio.volume = exitFade.volumes[index] * fade;
           if (progress >= 1 && channel.eventIndex >= 0) stopChannel(channel);
         });
         return;
       }
 
-      Object.entries(channels).forEach(([source, channel]) => {
-        const eventIndex = SENSORY_OVERLOAD_EVENTS.findIndex((event) => (
-          event.source === source && tunnelTime >= event.start && tunnelTime < event.end
-        ));
-        if (eventIndex < 0) {
+      channelList.forEach((channel) => {
+        let eventIndex = channel.eventIndexes[channel.nextEvent];
+        while (eventIndex !== undefined
+          && tunnelTime >= SENSORY_OVERLOAD_EVENTS[eventIndex].end) {
+          if (channel.eventIndex === eventIndex) stopChannel(channel);
+          channel.nextEvent += 1;
+          eventIndex = channel.eventIndexes[channel.nextEvent];
+        }
+        const event = eventIndex === undefined ? null : SENSORY_OVERLOAD_EVENTS[eventIndex];
+        if (!event || tunnelTime < event.start) {
           if (channel.eventIndex >= 0) stopChannel(channel);
           return;
         }
         if (channel.eventIndex !== eventIndex) startChannel(channel, eventIndex);
-        channel.audio.volume = eventVolumeAt(SENSORY_OVERLOAD_EVENTS[eventIndex], tunnelTime);
+        channel.audio.volume = eventVolumeAt(event, tunnelTime);
       });
     },
     beginExitFade(tunnelTime, duration = 2) {
@@ -146,25 +159,26 @@ export function createSensoryOverloadSound() {
       exitFade = {
         start: tunnelTime,
         duration,
-        volumes: Object.fromEntries(Object.entries(channels).map(
-          ([name, channel]) => [name, channel.audio.volume],
-        )),
+        volumes: channelList.map((channel) => channel.audio.volume),
       };
     },
     stop() {
       exitFade = null;
-      Object.values(channels).forEach((channel) => stopChannel(channel, true));
+      channelList.forEach((channel) => {
+        channel.nextEvent = 0;
+        stopChannel(channel, true);
+      });
     },
     dispose() {
       removeUnlockListeners();
       this.stop();
-      Object.values(channels).forEach(({ audio }) => {
+      channelList.forEach(({ audio }) => {
         audio.removeAttribute("src");
         audio.load();
       });
     },
     getDebugState() {
-      return Object.fromEntries(Object.entries(channels).map(([name, channel]) => [name, {
+      return Object.fromEntries(channelList.map((channel) => [channel.name, {
         eventIndex: channel.eventIndex,
         playing: !channel.audio.paused,
         currentTime: channel.audio.currentTime,
@@ -181,7 +195,7 @@ function eventVolumeAt(event, tunnelTime) {
 }
 
 function hasActiveChannel(channels) {
-  return Object.values(channels).some(({ eventIndex }) => eventIndex >= 0);
+  return channels.some(({ eventIndex }) => eventIndex >= 0);
 }
 
 function smoothstep(value) {
