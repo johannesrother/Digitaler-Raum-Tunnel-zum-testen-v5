@@ -25,13 +25,6 @@ const VIDEO_PREPARE_LEAD = 1.5;
 const FINAL_VIDEO_PREPARE_LEAD = 5.5;
 const DEG_TO_RAD = Math.PI / 180;
 const NON_XR_CEILING_CLEARANCE = 0.14;
-// Keep a dropped render frame from converting the complete wall-clock gap into
-// one visible locomotion step. Normal frame intervals pass through unchanged;
-// only a large gap is capped and then amortized over subsequent frames.
-const MOVEMENT_STALL_THRESHOLD = 0.05;
-const MOVEMENT_MAX_STEP = 0.08;
-const MOVEMENT_CATCH_UP_BONUS = 0.032;
-const MOVEMENT_CLOCK_EPSILON = 0.0001;
 const TUNNEL_TIC_EVENTS = [
   { at: 7.4, impulses: [
     { offset: 0, attack: 0.01, release: 0.075, yaw: 52, pitch: -6 },
@@ -145,8 +138,6 @@ export function createIdyllTunnelTransition(scene, options) {
   let tunnelEntryElapsed = 0;
   let tunnelSpeedClockOrigin = 0;
   let tunnelSpeedClockInitialized = false;
-  let movementTunnelClock = 0;
-  let movementClockInitialized = false;
   let tunnelTravelDuration = TUNNEL_TRAVEL_DURATION;
   let currentTunnelTime = 0;
   let inTunnel = false;
@@ -162,8 +153,6 @@ export function createIdyllTunnelTransition(scene, options) {
     entered: false,
   };
   const whiteRoomArrivalPosition = new BABYLON.Vector3();
-  const whiteRoomTransitionStartPosition = new BABYLON.Vector3();
-  let whiteRoomTransitionStarted = false;
   let experienceStarted = false;
   let previousFrameTime = performance.now();
   const initialHeading = headingFrom(options.initialForward);
@@ -243,24 +232,6 @@ export function createIdyllTunnelTransition(scene, options) {
       0,
       TUNNEL_DURATION,
     );
-    if (hasReachedTunnelTimeline) {
-      movementTunnelClock = advanceMovementClock(
-        movementTunnelClock,
-        tunnelClock,
-        elapsedDelta,
-      );
-      movementClockInitialized = true;
-    }
-    const movementTunnelTime = BABYLON.Scalar.Clamp(
-      tunnelTravelTime(
-        movementTunnelClock,
-        tunnelRoute,
-        riftApproachTime,
-        tunnelSpeedClockOrigin,
-      ),
-      0,
-      TUNNEL_DURATION,
-    );
     currentTunnelTime = tunnelTime;
     const hasReachedWhiteRoom = tunnelTime >= TUNNEL_DURATION;
     flashDebug.arm(tunnelElapsed);
@@ -278,11 +249,12 @@ export function createIdyllTunnelTransition(scene, options) {
       applyPathTransform(root, tunnelRoute, riftApproachTime + (tunnelRoute.entryTime - riftApproachTime)
         * riftPullProgress(elapsed - IDYLL_TRAVEL_DURATION, tunnelRoute, riftApproachTime), initialHeading, delta);
     } else if (!hasReachedWhiteRoom) {
-      const movementRouteTime = tunnelRoute.entryTime + movementTunnelTime;
+      const tunnelRouteTime = tunnelRoute.entryTime
+        + tunnelTime;
       applyPathTransform(
         root,
         tunnelRoute,
-        movementRouteTime,
+        tunnelRouteTime,
         initialHeading,
         delta,
       );
@@ -291,7 +263,7 @@ export function createIdyllTunnelTransition(scene, options) {
           options.desktopCamera,
           initialCameraPosition.y,
           options.tunnel,
-          tunnelRoute.tunnelProgressAt(movementRouteTime),
+          tunnelRoute.tunnelProgressAt(tunnelRouteTime),
         );
       }
       options.tunnel.update(tunnelTime);
@@ -300,13 +272,6 @@ export function createIdyllTunnelTransition(scene, options) {
         options.whiteRoom.preview(smoothstep((tunnelTime - WHITE_PREVIEW_START) / (TUNNEL_DURATION - WHITE_PREVIEW_START)));
       }
     } else {
-      if (!whiteRoomTransitionStarted) {
-        // If a stall left the movement clock behind, begin the existing
-        // white-room release from the rendered position instead of snapping
-        // to the route endpoint in one frame.
-        whiteRoomTransitionStartPosition.copyFrom(root.position);
-        whiteRoomTransitionStarted = true;
-      }
       activateWhiteRoom(options, root);
       const whiteElapsed = tunnelElapsed - tunnelTravelDuration;
       const releaseStartSpeed = tunnelRoute.normalTunnelSpeed
@@ -316,10 +281,7 @@ export function createIdyllTunnelTransition(scene, options) {
           riftApproachTime,
           tunnelSpeedClockOrigin,
         );
-      const releaseDistance = BABYLON.Vector3.Distance(
-        whiteRoomTransitionStartPosition,
-        options.whiteRoom.finalPosition,
-      );
+      const releaseDistance = BABYLON.Vector3.Distance(tunnelRoute.endPosition, options.whiteRoom.finalPosition);
       const releaseStartSlope = BABYLON.Scalar.Clamp(
         releaseStartSpeed * WHITE_ROOM_ARRIVAL_DURATION / Math.max(releaseDistance, 0.001),
         0.15,
@@ -327,7 +289,7 @@ export function createIdyllTunnelTransition(scene, options) {
       );
       const arrival = finalReleaseProgress(whiteElapsed / WHITE_ROOM_ARRIVAL_DURATION, releaseStartSlope);
       BABYLON.Vector3.LerpToRef(
-        whiteRoomTransitionStartPosition,
+        tunnelRoute.endPosition,
         options.whiteRoom.finalPosition,
         arrival,
         whiteRoomArrivalPosition,
@@ -476,9 +438,6 @@ export function createIdyllTunnelTransition(scene, options) {
       tunnelEntryElapsed = 0;
       tunnelSpeedClockOrigin = 0;
       tunnelSpeedClockInitialized = false;
-      movementTunnelClock = 0;
-      movementClockInitialized = false;
-      whiteRoomTransitionStarted = false;
       tunnelTravelDuration = TUNNEL_TRAVEL_DURATION;
       currentTunnelTime = 0;
       inTunnel = false;
@@ -540,7 +499,6 @@ export function createIdyllTunnelTransition(scene, options) {
             initialHeading,
             riftApproachTime,
             tunnelSpeedClockOrigin,
-            movementClockInitialized ? movementTunnelClock : null,
           );
           return;
         }
@@ -556,7 +514,6 @@ export function createIdyllTunnelTransition(scene, options) {
           initialHeading,
           riftApproachTime,
           tunnelSpeedClockOrigin,
-          movementClockInitialized ? movementTunnelClock : null,
         );
       });
     },
@@ -710,25 +667,6 @@ function closestDistanceAlongPolyline(points, target) {
   }
 
   return distanceAlongPath;
-}
-
-function advanceMovementClock(current, target, frameDelta) {
-  const remaining = Math.max(0, target - current);
-  if (remaining <= MOVEMENT_CLOCK_EPSILON) {
-    return target;
-  }
-
-  // Stable frames retain their exact elapsed-time step. A dropped frame is
-  // capped, and the remaining debt is repaid with a small bounded bonus on
-  // following frames instead of one large spatial catch-up jump.
-  const baseStep = Math.min(Math.max(0, frameDelta), MOVEMENT_MAX_STEP);
-  const hasCatchUpDebt = remaining > baseStep + MOVEMENT_CLOCK_EPSILON;
-  const catchUpBonus = hasCatchUpDebt
-    && frameDelta <= MOVEMENT_STALL_THRESHOLD
-    ? MOVEMENT_CATCH_UP_BONUS
-    : 0;
-  const step = Math.min(remaining, MOVEMENT_MAX_STEP, baseStep + catchUpBonus);
-  return current + step;
 }
 
 function applyPathTransform(root, route, time, initialHeading, delta) {
@@ -1289,7 +1227,6 @@ function syncRootToExperienceTime(
   initialHeading,
   riftApproachTime,
   speedClockOrigin,
-  movementClock = null,
 ) {
   if (elapsed < IDYLL_TRAVEL_DURATION) {
     applyPathTransform(root, tunnelRoute, riftApproachTime * calmTravelProgress(elapsed / IDYLL_TRAVEL_DURATION), initialHeading, 0);
@@ -1301,11 +1238,8 @@ function syncRootToExperienceTime(
     return;
   }
   const tunnelTime = elapsed - TUNNEL_START;
-  const positionClock = Number.isFinite(movementClock)
-    ? movementClock
-    : tunnelTime;
   const tunnelProgressTime = tunnelTravelTime(
-    positionClock,
+    tunnelTime,
     tunnelRoute,
     riftApproachTime,
     speedClockOrigin,
