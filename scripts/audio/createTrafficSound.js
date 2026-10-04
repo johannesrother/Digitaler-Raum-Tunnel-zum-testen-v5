@@ -8,14 +8,14 @@ export const TRAFFIC_EVENTS = Object.freeze([
   { start: 5.8, end: 7.4, offset: 3.2, volume: 0.10, fadeIn: 0.45, fadeOut: 0.35 },
   { start: 10.9, end: 13.7, offset: 12.5, volume: 0.13, fadeIn: 0.8, fadeOut: 0.5 },
   { start: 17.1, end: 18.4, offset: 31.0, volume: 0.16, fadeIn: 0.15, fadeOut: 0.4 },
-  { start: 21.6, end: 25.4, offset: 47.0, volume: 0.19, fadeIn: 1.15, fadeOut: 0.65 },
-  { start: 28.8, end: 31.0, offset: 7.5, volume: 0.21, fadeIn: 0.25, fadeOut: 0.45 },
-  { start: 34.0, end: 38.6, offset: 23.0, volume: 0.25, fadeIn: 0.75, fadeOut: 0.55 },
-  { start: 40.8, end: 42.1, offset: 55.0, volume: 0.27, fadeIn: 0.1, fadeOut: 0.2 },
-  { start: 42.75, end: 45.1, offset: 66.0, volume: 0.29, fadeIn: 0.16, fadeOut: 0.25 },
-  { start: 45.7, end: 48.1, offset: 18.0, volume: 0.31, fadeIn: 0.14, fadeOut: 0.24 },
-  { start: 48.65, end: 50.05, offset: 72.0, volume: 0.32, fadeIn: 0.1, fadeOut: 0.16 },
-  { start: 50.35, end: 54.7, offset: 38.0, volume: 0.34, fadeIn: 0.08, fadeOut: 1.1 },
+  { start: 21.2, end: 25.4, offset: 47.0, volume: 0.19, fadeIn: 0.9, fadeOut: 0.55 },
+  { start: 27.8, end: 31.4, offset: 7.5, volume: 0.22, fadeIn: 0.22, fadeOut: 0.38 },
+  { start: 33.2, end: 39.0, offset: 23.0, volume: 0.26, fadeIn: 0.55, fadeOut: 0.42 },
+  { start: 40.5, end: 42.2, offset: 55.0, volume: 0.28, fadeIn: 0.085, fadeOut: 0.17 },
+  { start: 42.65, end: 45.25, offset: 66.0, volume: 0.30, fadeIn: 0.13, fadeOut: 0.21 },
+  { start: 45.6, end: 48.2, offset: 18.0, volume: 0.32, fadeIn: 0.11, fadeOut: 0.2 },
+  { start: 48.55, end: 50.15, offset: 72.0, volume: 0.33, fadeIn: 0.08, fadeOut: 0.14 },
+  { start: 50.3, end: 54.7, offset: 38.0, volume: 0.34, fadeIn: 0.065, fadeOut: 1.1 },
 ]);
 
 /** A single reusable HTML-audio source driven by authoritative tunnel progress. */

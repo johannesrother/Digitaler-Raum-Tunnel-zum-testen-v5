@@ -5,14 +5,19 @@ const VOICES_FADE_IN_SECONDS = 1.5;
 const AUDIO_FADE_STEP_MS = 16;
 const VOICES_URL = new URL("../../assets/sounds/Voices.wav", import.meta.url);
 
-// The first full playback still belongs to the first video cut. These late,
-// progress-driven fragments reuse that same element to join the final waves.
+// The first full playback still belongs to the first video cut. These later,
+// progress-driven fragments reuse that same element to densify the middle and
+// final waves without adding a second decoder.
 export const VOICES_LATE_EVENTS = Object.freeze([
-  { start: 40.8, end: 42.0, offset: 0.4, volume: 0.22, fadeIn: 0.14, fadeOut: 0.18 },
-  { start: 43.0, end: 44.8, offset: 3.1, volume: 0.24, fadeIn: 0.12, fadeOut: 0.2 },
-  { start: 45.9, end: 47.6, offset: 5.5, volume: 0.26, fadeIn: 0.1, fadeOut: 0.18 },
-  { start: 48.8, end: 49.95, offset: 1.8, volume: 0.28, fadeIn: 0.08, fadeOut: 0.14 },
-  { start: 50.45, end: 52.1, offset: 4.0, volume: 0.30, fadeIn: 0.07, fadeOut: 0.14 },
+  { start: 28.3, end: 30.0, offset: 0.9, volume: 0.20, fadeIn: 0.16, fadeOut: 0.2 },
+  { start: 33.0, end: 34.0, offset: 5.9, volume: 0.21, fadeIn: 0.09, fadeOut: 0.15 },
+  { start: 35.5, end: 37.4, offset: 2.6, volume: 0.22, fadeIn: 0.14, fadeOut: 0.19 },
+  { start: 39.2, end: 40.15, offset: 6.65, volume: 0.225, fadeIn: 0.07, fadeOut: 0.12 },
+  { start: 40.5, end: 42.2, offset: 0.4, volume: 0.24, fadeIn: 0.11, fadeOut: 0.16 },
+  { start: 42.65, end: 45.25, offset: 3.1, volume: 0.26, fadeIn: 0.1, fadeOut: 0.18 },
+  { start: 45.6, end: 48.2, offset: 4.8, volume: 0.28, fadeIn: 0.08, fadeOut: 0.16 },
+  { start: 48.55, end: 50.15, offset: 1.8, volume: 0.30, fadeIn: 0.065, fadeOut: 0.12 },
+  { start: 50.3, end: 52.1, offset: 4.0, volume: 0.30, fadeIn: 0.055, fadeOut: 0.12 },
 ]);
 
 /** A short, non-looping voice layer introduced by the first tunnel video cut. */
