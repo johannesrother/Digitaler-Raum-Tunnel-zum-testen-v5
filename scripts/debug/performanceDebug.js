@@ -5,7 +5,6 @@ const MODES = new Set([
   "noaudio",
   "novideo",
   "nopreload",
-  "nobreathing",
   "notics",
   "minimal",
 ]);
@@ -20,7 +19,6 @@ export const PERF_DEBUG = Object.freeze({
   disableChaosAudio: mode === "noaudio" || mode === "minimal",
   disableVideo: mode === "novideo" || mode === "minimal",
   disablePreload: mode === "nopreload" || mode === "minimal",
-  disableBreathing: mode === "nobreathing" || mode === "minimal",
   disableTics: mode === "notics" || mode === "minimal",
 });
 

@@ -5,7 +5,6 @@ import {
   getTunnelTwitchInterval,
 } from "./tunnelConfig.js";
 import { createTunnelVideoSkin } from "./createTunnelVideoSkin.js";
-import { PERF_DEBUG, isPerfDebugFinalThird } from "../debug/performanceDebug.js";
 
 const PATH_SAMPLES = 188;
 // Eight extra radial samples are reserved for the higher-curvature fin tips;
@@ -15,14 +14,6 @@ const PROFILE_SIDES = 40;
 const WALL_DEFORMATION_TARGETS = 6;
 const MINIMUM_CLEAR_RADIUS = 0.58;
 const MINIMUM_TUNNEL_VERTICAL_CLEARANCE = 1.2;
-const BREATHING_TARGET_CONTRACTION = 0.1;
-const BREATHING_MINIMUM_CLEAR_RADIUS = MINIMUM_CLEAR_RADIUS + 0.08;
-const BREATHING_MINIMUM_VERTICAL_CLEARANCE = MINIMUM_TUNNEL_VERTICAL_CLEARANCE + 0.16;
-const TUNNEL_BREATHING_EVENTS = [
-  { start: 10.8, duration: 4.2, contraction: 0.04, secondary: 0.34 },
-  { start: 23.9, duration: 5, contraction: 0.07, secondary: 0.52 },
-  { start: 38.8, duration: 3.8, contraction: 0.09, secondary: 0.4 },
-];
 const GRAZING_LIGHT_BOOST = 1.18;
 const FILL_LIGHT_BOOST = 1.06;
 const LATE_TUNNEL_VISIBILITY_START = 40;
@@ -99,8 +90,6 @@ export function createOrganicTunnel(scene, options) {
   let impulse = 0;
   let activeTime = 0;
   let travelProgress = 0;
-  let breathingTime = 0;
-  let breathingActive = false;
   let sequenceActive = false;
   let previousFrameTime = performance.now();
   updateTunnelMembraneMaterial(material, 0);
@@ -111,13 +100,7 @@ export function createOrganicTunnel(scene, options) {
     previousFrameTime = frameTime;
     if (!sequenceActive || !lights.enabled) return;
     activeTime = Math.min(activeTime + delta, TUNNEL_DURATION);
-    if (breathingActive) {
-      breathingTime = Math.min(breathingTime + delta, TUNNEL_DURATION);
-    }
-    const breathingEnabled = !(
-      PERF_DEBUG.disableBreathing && isPerfDebugFinalThird(travelProgress)
-    );
-    wallDeformation.update(activeTime, breathingTime, breathingEnabled);
+    wallDeformation.update(activeTime);
     // During travel update() owns the progress-based look and light positions.
     // The preview only animates the shell; it must not advance the travel look.
     impulse = Math.max(0, impulse - delta * 2.9);
@@ -149,7 +132,6 @@ export function createOrganicTunnel(scene, options) {
     update(tunnelTime) {
       videoSkin.update(tunnelTime);
       sequenceActive = true;
-      breathingActive = true;
       // The walls may already be visible and moving through the rift. Keep
       // that motion continuous when the travel clock begins instead of
       // resetting the deformation phase to zero on the crossing frame.
@@ -185,8 +167,6 @@ export function createOrganicTunnel(scene, options) {
         videoSkin.reset();
         activeTime = 0;
         travelProgress = 0;
-        breathingTime = 0;
-        breathingActive = false;
         impulse = 0;
         updateTunnelMembraneMaterial(material, 0);
         updateTunnelLights(lights, 0, 0);
@@ -197,8 +177,6 @@ export function createOrganicTunnel(scene, options) {
       sequenceActive = false;
       activeTime = 0;
       travelProgress = 0;
-      breathingTime = 0;
-      breathingActive = false;
       impulse = 0;
       nextImpulseAt = 12.7;
       previousFrameTime = performance.now();
@@ -409,97 +387,18 @@ function createWallDeformation(scene, mesh, basePositions, indices, vertices) {
     manager.addTarget(target);
     return target;
   });
-  const breathingPositions = basePositions.slice();
-  vertices.forEach((vertex, index) => {
-    const floorMask = getBreathingSurfaceMask(vertex.angle);
-    const entryMask = smoothstep((vertex.progress - 0.035) / 0.14);
-    const exitMask = 1 - smoothstep((vertex.progress - 0.82) / 0.12);
-    const requestedContraction = BREATHING_TARGET_CONTRACTION
-      * floorMask * entryMask * exitMask;
-    const safeRadiusContraction = Math.max(
-      0,
-      1 - BREATHING_MINIMUM_CLEAR_RADIUS / vertex.radius,
-    );
-    const verticalComponent = Math.abs(Math.sin(vertex.angle));
-    const clearanceMargin = Math.max(
-      0,
-      vertex.verticalClearance - BREATHING_MINIMUM_VERTICAL_CLEARANCE,
-    );
-    const safeClearanceContraction = verticalComponent > 0.001
-      ? clearanceMargin / Math.max(vertex.radius * verticalComponent, 0.001)
-      : requestedContraction;
-    const contraction = Math.min(
-      requestedContraction,
-      safeRadiusContraction,
-      safeClearanceContraction,
-    );
-    const offset = vertex.direction.scale(-vertex.radius * contraction);
-    const position = index * 3;
-    breathingPositions[position] += offset.x;
-    breathingPositions[position + 1] += offset.y;
-    breathingPositions[position + 2] += offset.z;
-  });
-  const breathingNormals = [];
-  BABYLON.VertexData.ComputeNormals(breathingPositions, indices, breathingNormals);
-  const breathingTarget = new BABYLON.MorphTarget("organic-wall-breathing", 0, scene);
-  breathingTarget.setPositions(breathingPositions);
-  breathingTarget.setNormals(breathingNormals);
-  manager.addTarget(breathingTarget);
   mesh.morphTargetManager = manager;
 
   return {
-    update(time, breathingTime, breathingEnabled = true) {
+    update(time) {
       targets.forEach((target, targetIndex) => {
         target.influence = getPressureWaveInfluence(time, targetIndex);
       });
-      breathingTarget.influence = breathingEnabled ? getBreathingInfluence(breathingTime) : 0;
     },
     dispose() {
       manager.dispose();
     },
   };
-}
-
-function getBreathingSurfaceMask(angle) {
-  const floorAngle = Math.PI * 1.5;
-  const distanceFromFloor = Math.abs(Math.atan2(
-    Math.sin(angle - floorAngle),
-    Math.cos(angle - floorAngle),
-  ));
-  // The lower 25 degrees stay fixed; the lower walls then join gradually so
-  // the contraction has no hard hinge and the route's floor datum never moves.
-  return smoothstep((distanceFromFloor - 0.44) / 0.72);
-}
-
-function getBreathingInfluence(time) {
-  const event = TUNNEL_BREATHING_EVENTS.find(({ start, duration }) => (
-    time >= start && time <= start + duration
-  ));
-  if (!event) return 0;
-  const progress = (time - event.start) / event.duration;
-  const peak = event.contraction / BREATHING_TARGET_CONTRACTION;
-  if (progress < 0.34) {
-    return peak * smoothstep(progress / 0.34);
-  }
-  if (progress < 0.58) {
-    return BABYLON.Scalar.Lerp(
-      peak,
-      peak * 0.16,
-      smoothstep((progress - 0.34) / 0.24),
-    );
-  }
-  if (progress < 0.79) {
-    return BABYLON.Scalar.Lerp(
-      peak * 0.16,
-      peak * event.secondary,
-      smoothstep((progress - 0.58) / 0.21),
-    );
-  }
-  return BABYLON.Scalar.Lerp(
-    peak * event.secondary,
-    0,
-    smoothstep((progress - 0.79) / 0.21),
-  );
 }
 
 function getLocalContraction(progress, angle, targetIndex) {

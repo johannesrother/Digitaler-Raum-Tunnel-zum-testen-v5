@@ -65,11 +65,9 @@ Die Vorwärtsbewegung folgt weiterhin derselben geometrischen Route, ihre Geschw
 
 Langsame Hemmungsphasen wechseln mit normaler Fahrt und kurzen, starken Beschleunigungen. Mehrere Wechsel liegen unmittelbar nach ausgewählten Tic-Ereignissen; nicht jedes Tic verändert die Geschwindigkeit. Die zurückgelegte Strecke wird aus dem Geschwindigkeitsprofil integriert, sodass keine Teleports oder ausgelassenen Routenabschnitte entstehen. Diese Unregelmäßigkeit unterstützt den Kontrollverlust, ohne den Tunnelpfad zu verändern.
 
-## 7. Breathing Tunnel
+## 7. Tunnelverengung
 
-Der Breathing-Effekt ist implementiert. Drei kurze Phasen kontrahieren Seiten und Decke subtil mit Zielstärken von 4, 7 und 9 Prozent. Sie dauern 4,2, 5,0 und 3,8 Sekunden und liegen verteilt im frühen bis mittleren Tunnel.
-
-Die Bewegung nutzt ein zusätzliches GPU-Morph-Target statt einer permanenten CPU-Neuberechnung der Geometrie. Der untere Bodenbereich wird maskiert und bleibt stabil; Sicherheitsklemmen begrenzen die Kontraktion im begehbaren Querschnitt. Der Tunnel pulsiert nicht dauerhaft, sondern reagiert in wenigen organischen Verdichtungen.
+Die entlang der Route modellierte Verengung bleibt dauerhaft Bestandteil der Tunnelbasisform. Ein zusätzliches rhythmisches Breathing-System ist nicht aktiv.
 
 ## 8. Audio
 
@@ -118,7 +116,7 @@ Vorhandene Laufzeitmaßnahmen für Browser und Standalone-XR sind:
 - Grassdarstellung über Thin Instances statt einzelner Grasmeshes;
 - maximal aktuelle plus vorbereitete Videoquelle und sofortige Freigabe alter `VideoTexture`-Quellen;
 - pausierte und zurückgesetzte Videos außerhalb der aktiven Tunnelphase;
-- GPU-Morph-Targets für Wandbewegung und Breathing statt Geometrie-Neuberechnung pro Frame;
+- GPU-Morph-Targets für Wandbewegung statt Geometrie-Neuberechnung pro Frame;
 - wiederverwendete Pools für die Pre-Rift-Lichtreflexe;
 - White Fade als 1×1-Textur auf einer Babylon-Layer statt eines zusätzlichen Render-Targets;
 - Twilight als Zustandsänderung vorhandener Lichter und Materialien ohne zusätzlichen Postprocess;
@@ -182,7 +180,7 @@ Das Projekt wird aktuell von einem zweiköpfigen Team im Studiengang Objekt- und
 
 - vollständiger Ablauf von warmer Idylle bis Twilight-Rückkehr und REEXPERIENCE;
 - transparentes Rift mit Stencil-Crossing, Glare, Nachbildern und Audioübergang;
-- kontinuierlicher biomorpher Tunnel mit Verengung, Morphbewegung, Beleuchtung und drei Breathing-Phasen;
+- kontinuierlicher biomorpher Tunnel mit Verengung, Morphbewegung und Beleuchtung;
 - Full-Tunnel-Video in der Sequenz `12 → 2 → 25 → 16`;
 - diskrete Einzel-, Doppel- und Dreifach-Tics mit erhaltenem XR-Headtracking;
 - variable Vorwärtsgeschwindigkeit zwischen `0,45×` und `2,8×`;
@@ -193,7 +191,6 @@ Das Projekt wird aktuell von einem zweiköpfigen Team im Studiengang Objekt- und
 ### Experimentell
 
 - künstlerische Feinabstimmung der Tic-Stärken, Geschwindigkeitswechsel und Video-Cuts;
-- Intensität und zeitliche Platzierung der Breathing-Phasen;
 - Komfort und Wirkung der körperlichen Verengung in längeren VR-Tests.
 
 ### Bekannte Einschränkungen
