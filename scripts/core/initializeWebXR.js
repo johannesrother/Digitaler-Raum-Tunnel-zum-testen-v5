@@ -3,7 +3,7 @@ import { setStatus } from "../utils/dom.js";
 const IMMERSIVE_VR = "immersive-vr";
 const LOCAL_FLOOR = "local-floor";
 const LOCAL = "local";
-const XR_FRAMEBUFFER_SCALE = 0.8;
+const XR_FRAMEBUFFER_SCALE = 0.9;
 
 /**
  * Adds an optional WebXR entry path without affecting desktop rendering.
