@@ -35,8 +35,8 @@ export async function initializeWebXR({ scene, enterVrButton, statusElement, onE
       xrCamera.position.y = 0;
     });
 
-    const grassAliasingAB = createQuestGrassAliasingAB(scene);
-    enableVrEntry({ xr, enterVrButton, statusElement, onEntered, grassAliasingAB });
+    const grassDensity = createQuestGrassDensityController(scene);
+    enableVrEntry({ xr, enterVrButton, statusElement, onEntered, grassDensity });
     setStatus(statusElement, "WebXR bereit. VR kann betreten werden.");
     return xr;
   } catch (error) {
@@ -47,7 +47,7 @@ export async function initializeWebXR({ scene, enterVrButton, statusElement, onE
   }
 }
 
-function enableVrEntry({ xr, enterVrButton, statusElement, onEntered, grassAliasingAB }) {
+function enableVrEntry({ xr, enterVrButton, statusElement, onEntered, grassDensity }) {
   delete enterVrButton.dataset.xrUnavailable;
   enterVrButton.hidden = false;
   enterVrButton.disabled = false;
@@ -58,10 +58,10 @@ function enableVrEntry({ xr, enterVrButton, statusElement, onEntered, grassAlias
     enterVrButton.hidden = inVr;
 
     if (inVr) {
-      grassAliasingAB.hide();
+      grassDensity.useXrDensity();
       setStatus(statusElement, "VR ist aktiv.");
     } else if (state === BABYLON.WebXRState.NOT_IN_XR) {
-      grassAliasingAB.restore();
+      grassDensity.restoreDesktopDensity();
       if (!enterVrButton.disabled) {
         enterVrButton.textContent = "VR betreten";
         setStatus(statusElement, "WebXR bereit. VR kann betreten werden.");
@@ -78,11 +78,11 @@ function enableVrEntry({ xr, enterVrButton, statusElement, onEntered, grassAlias
     setStatus(statusElement, "VR-Session wird gestartet …");
 
     try {
-      grassAliasingAB.hide();
+      grassDensity.useXrDensity();
       await enterImmersiveVr(xr);
       onEntered?.();
     } catch (error) {
-      grassAliasingAB.restore();
+      grassDensity.restoreDesktopDensity();
       enterVrButton.textContent = "VR erneut versuchen";
       console.error("Die immersive VR-Session konnte nicht gestartet werden.", error);
       setStatus(statusElement, "VR-Session konnte nicht gestartet werden. Desktop-Test aktiv.");
@@ -92,15 +92,18 @@ function enableVrEntry({ xr, enterVrButton, statusElement, onEntered, grassAlias
   });
 }
 
-function createQuestGrassAliasingAB(scene) {
-  const grassMeshes = scene.meshes.filter((mesh) => mesh.metadata?.questGrassAliasingAB);
-  const desktopVisibility = new Map(grassMeshes.map((mesh) => [mesh, mesh.isVisible]));
+function createQuestGrassDensityController(scene) {
+  const grassMeshes = scene.meshes.filter((mesh) => mesh.metadata?.questGrassDensity);
   return {
-    hide() {
-      grassMeshes.forEach((mesh) => { mesh.isVisible = false; });
+    useXrDensity() {
+      grassMeshes.forEach((mesh) => {
+        mesh.thinInstanceCount = mesh.metadata.questGrassDensity.xrCount;
+      });
     },
-    restore() {
-      grassMeshes.forEach((mesh) => { mesh.isVisible = desktopVisibility.get(mesh); });
+    restoreDesktopDensity() {
+      grassMeshes.forEach((mesh) => {
+        mesh.thinInstanceCount = mesh.metadata.questGrassDensity.desktopCount;
+      });
     },
   };
 }
