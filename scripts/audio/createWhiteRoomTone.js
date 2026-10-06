@@ -1,31 +1,78 @@
-const WHITE_ROOM_SOUND_VOLUME = 0.8;
+const FLATLINE_FREQUENCY_HZ = 1000;
+const FLATLINE_GAIN = 0.18;
+const FLATLINE_DURATION_SECONDS = 8.173424;
 const WHITE_ROOM_FADE_OUT_SECONDS = 5;
+const FLATLINE_ATTACK_SECONDS = 0.05;
+const FLATLINE_RELEASE_SECONDS = 0.03;
 const AUDIO_FADE_STEP_MS = 16;
-const WHITE_ROOM_SOUND_URL = new URL(
-  "../../assets/sounds/82078__kapanoush__sinus-aditive.wav",
-  import.meta.url,
-);
 
-/** Reuses the tunnel's simple global HTML-audio playback approach. */
+/** A single lightweight Web-Audio oscillator for the White-Room flatline. */
 export function createWhiteRoomTone({ onActivate, onFadeStart, onFadeProgress, onEnded } = {}) {
-  const whiteRoomAudio = new Audio(WHITE_ROOM_SOUND_URL.href);
-  whiteRoomAudio.preload = "auto";
-  whiteRoomAudio.loop = false;
-  whiteRoomAudio.volume = WHITE_ROOM_SOUND_VOLUME;
-  whiteRoomAudio.load();
-
+  const AudioContextClass = window.AudioContext ?? window.webkitAudioContext;
+  let audioContext = null;
+  let oscillator = null;
+  let gainNode = null;
   let unlocked = false;
   let unlocking = false;
   let activated = false;
-  let fadeFrame = null;
   let playbackStarted = false;
+  let fadeFrame = null;
   let returnStarted = false;
   let returnProgress = 0;
   let playbackGeneration = 0;
 
+  const ensureAudioContext = () => {
+    if (!audioContext && AudioContextClass) {
+      audioContext = new AudioContextClass();
+    }
+    return audioContext;
+  };
+
   const cancelFadeFrame = () => {
     if (fadeFrame !== null) window.clearTimeout(fadeFrame);
     fadeFrame = null;
+  };
+
+  const disconnectNodes = () => {
+    oscillator?.disconnect();
+    gainNode?.disconnect();
+    oscillator = null;
+    gainNode = null;
+  };
+
+  const stopNodes = ({ release = false } = {}) => {
+    const activeOscillator = oscillator;
+    const activeGain = gainNode;
+    oscillator = null;
+    gainNode = null;
+    if (!activeOscillator || !activeGain || !audioContext) {
+      activeOscillator?.disconnect();
+      activeGain?.disconnect();
+      return;
+    }
+
+    activeOscillator.onended = null;
+    const now = audioContext.currentTime;
+    const releaseDuration = release ? FLATLINE_RELEASE_SECONDS : 0;
+    if (typeof activeGain.gain.cancelAndHoldAtTime === "function") {
+      activeGain.gain.cancelAndHoldAtTime(now);
+    } else {
+      const currentGain = activeGain.gain.value;
+      activeGain.gain.cancelScheduledValues(now);
+      activeGain.gain.setValueAtTime(currentGain, now);
+    }
+    activeGain.gain.linearRampToValueAtTime(0, now + releaseDuration);
+    try {
+      activeOscillator.stop(now + releaseDuration);
+    } catch {
+      activeOscillator.disconnect();
+      activeGain.disconnect();
+      return;
+    }
+    activeOscillator.onended = () => {
+      activeOscillator.disconnect();
+      activeGain.disconnect();
+    };
   };
 
   const applyReturnFade = (progress) => {
@@ -35,38 +82,30 @@ export function createWhiteRoomTone({ onActivate, onFadeStart, onFadeProgress, o
       onFadeStart?.();
     }
     returnProgress = Math.max(returnProgress, progress);
-    whiteRoomAudio.volume = WHITE_ROOM_SOUND_VOLUME * (1 - returnProgress);
     onFadeProgress?.(returnProgress);
   };
 
-  const handleEnded = () => {
-    // Ignore the silent unlock probe and callbacks belonging to stopped runs.
-    if (!activated || !playbackStarted) return;
+  const finishPlayback = (generation) => {
+    if (!activated || !playbackStarted || generation !== playbackGeneration) return;
     cancelFadeFrame();
     applyReturnFade(1);
     activated = false;
     playbackStarted = false;
-    // The original REEXPERIENCE scheduling only begins after the return is done.
+    disconnectNodes();
     onEnded?.();
   };
-  whiteRoomAudio.addEventListener("ended", handleEnded);
 
   const unlock = async () => {
-    if (unlocked || unlocking || activated) {
-      return;
-    }
+    if (unlocked || unlocking) return;
+    const context = ensureAudioContext();
+    if (!context) return;
     unlocking = true;
     try {
-      whiteRoomAudio.volume = 0;
-      await whiteRoomAudio.play();
-      if (activated) return;
-      whiteRoomAudio.pause();
-      whiteRoomAudio.currentTime = 0;
-      whiteRoomAudio.volume = WHITE_ROOM_SOUND_VOLUME;
-      unlocked = true;
-      removeUnlockListeners();
+      if (context.state !== "running") await context.resume();
+      unlocked = context.state === "running";
+      if (unlocked) removeUnlockListeners();
     } catch {
-      whiteRoomAudio.volume = WHITE_ROOM_SOUND_VOLUME;
+      unlocked = false;
     } finally {
       unlocking = false;
     }
@@ -86,47 +125,65 @@ export function createWhiteRoomTone({ onActivate, onFadeStart, onFadeProgress, o
 
   return {
     activate({ fadeInDuration = 0 } = {}) {
-      if (activated) {
-        return;
-      }
+      if (activated) return;
       activated = true;
       playbackStarted = false;
       returnStarted = false;
       returnProgress = 0;
       const generation = ++playbackGeneration;
       cancelFadeFrame();
-      whiteRoomAudio.currentTime = 0;
-      whiteRoomAudio.volume = fadeInDuration > 0 ? 0 : WHITE_ROOM_SOUND_VOLUME;
-      whiteRoomAudio.play().then(() => {
+      stopNodes();
+
+      const context = ensureAudioContext();
+      if (!context) {
+        activated = false;
+        console.error("WHITE ROOM AUDIO ERROR: Web Audio is unavailable.");
+        return;
+      }
+
+      const startFlatline = async () => {
+        if (context.state !== "running") await context.resume();
         if (!activated || generation !== playbackGeneration) return;
+
+        const startedAt = context.currentTime;
+        const attackDuration = Math.min(
+          Math.max(fadeInDuration, FLATLINE_ATTACK_SECONDS),
+          FLATLINE_ATTACK_SECONDS + 0.01,
+        );
+        const fadeStart = FLATLINE_DURATION_SECONDS - WHITE_ROOM_FADE_OUT_SECONDS;
+        oscillator = context.createOscillator();
+        gainNode = context.createGain();
+        oscillator.type = "sine";
+        oscillator.frequency.setValueAtTime(FLATLINE_FREQUENCY_HZ, startedAt);
+        gainNode.gain.setValueAtTime(0, startedAt);
+        gainNode.gain.linearRampToValueAtTime(FLATLINE_GAIN, startedAt + attackDuration);
+        gainNode.gain.setValueAtTime(FLATLINE_GAIN, startedAt + fadeStart);
+        gainNode.gain.linearRampToValueAtTime(0, startedAt + FLATLINE_DURATION_SECONDS);
+        oscillator.connect(gainNode);
+        gainNode.connect(context.destination);
+        oscillator.onended = () => finishPlayback(generation);
+        oscillator.start(startedAt);
+        oscillator.stop(startedAt + FLATLINE_DURATION_SECONDS);
         playbackStarted = true;
-        // Report only an actual, successful playback start. The silent
-        // autoplay-unlock probe must never count as a White-Room sound run.
         onActivate?.();
-        const startedAt = performance.now();
+
         const update = () => {
           if (!activated || generation !== playbackGeneration) return;
-          const duration = whiteRoomAudio.duration;
-          if (Number.isFinite(duration) && duration > 0) {
-            const fadeDuration = Math.min(WHITE_ROOM_FADE_OUT_SECONDS, duration * 0.75);
-            const fadeStart = duration - fadeDuration;
-            if (whiteRoomAudio.currentTime >= fadeStart) {
-              const progress = Math.min(1, (whiteRoomAudio.currentTime - fadeStart) / fadeDuration);
-              applyReturnFade(progress * progress * (3 - 2 * progress));
-            }
-          }
-          if (!returnStarted) {
-            const fadeIn = fadeInDuration > 0
-              ? Math.min(1, (performance.now() - startedAt) / (fadeInDuration * 1000))
-              : 1;
-            whiteRoomAudio.volume = WHITE_ROOM_SOUND_VOLUME * fadeIn;
+          const elapsed = context.currentTime - startedAt;
+          if (elapsed >= fadeStart) {
+            const progress = Math.min(1, (elapsed - fadeStart) / WHITE_ROOM_FADE_OUT_SECONDS);
+            applyReturnFade(progress * progress * (3 - 2 * progress));
           }
           fadeFrame = window.setTimeout(update, AUDIO_FADE_STEP_MS);
         };
         update();
-      }).catch((error) => {
+      };
+
+      startFlatline().catch((error) => {
         if (generation !== playbackGeneration) return;
         activated = false;
+        playbackStarted = false;
+        stopNodes();
         console.error("WHITE ROOM AUDIO ERROR:", error);
       });
     },
@@ -137,16 +194,16 @@ export function createWhiteRoomTone({ onActivate, onFadeStart, onFadeProgress, o
       playbackStarted = false;
       returnStarted = false;
       returnProgress = 0;
-      whiteRoomAudio.pause();
-      whiteRoomAudio.currentTime = 0;
-      whiteRoomAudio.volume = WHITE_ROOM_SOUND_VOLUME;
+      stopNodes({ release: true });
     },
     dispose() {
       removeUnlockListeners();
       this.deactivate();
-      whiteRoomAudio.removeEventListener("ended", handleEnded);
-      whiteRoomAudio.removeAttribute("src");
-      whiteRoomAudio.load();
+      const context = audioContext;
+      audioContext = null;
+      if (context && context.state !== "closed") {
+        context.close().catch(() => {});
+      }
     },
   };
 }
