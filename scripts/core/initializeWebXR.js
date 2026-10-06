@@ -93,17 +93,36 @@ function enableVrEntry({ xr, enterVrButton, statusElement, onEntered, grassDensi
 }
 
 function createQuestGrassDensityController(scene) {
-  const grassMeshes = scene.meshes.filter((mesh) => mesh.metadata?.questGrassDensity);
+  const grassMeshes = scene.meshes
+    .filter((mesh) => mesh.metadata?.questGrassDensity)
+    .map((mesh) => ({
+      mesh,
+      density: mesh.metadata.questGrassDensity,
+      enabled: mesh.isEnabled(),
+      isVisible: mesh.isVisible,
+      visibility: mesh.visibility,
+    }));
+  let usingXrDensity = false;
   return {
     useXrDensity() {
-      grassMeshes.forEach((mesh) => {
-        mesh.thinInstanceCount = mesh.metadata.questGrassDensity.xrCount;
+      if (usingXrDensity) return;
+      grassMeshes.forEach(({ mesh, density }) => {
+        mesh.setEnabled(true);
+        mesh.isVisible = true;
+        mesh.visibility = 1;
+        mesh.thinInstanceSetBuffer("matrix", density.xrMatrices, 16, true);
       });
+      usingXrDensity = true;
     },
     restoreDesktopDensity() {
-      grassMeshes.forEach((mesh) => {
-        mesh.thinInstanceCount = mesh.metadata.questGrassDensity.desktopCount;
+      if (!usingXrDensity) return;
+      grassMeshes.forEach(({ mesh, density, enabled, isVisible, visibility }) => {
+        mesh.thinInstanceSetBuffer("matrix", density.desktopMatrices, 16, true);
+        mesh.setEnabled(enabled);
+        mesh.isVisible = isVisible;
+        mesh.visibility = visibility;
       });
+      usingXrDensity = false;
     },
   };
 }

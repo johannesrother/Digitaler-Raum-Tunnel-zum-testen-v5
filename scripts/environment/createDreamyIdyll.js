@@ -446,7 +446,6 @@ function createRouteGrass(scene, world, startPosition, route, libraries, exclusi
   const random = createRandom(96113);
   const count = ROUTE_GRASS_COUNT + REAR_MEADOW_GRASS_COUNT;
   const xrCount = Math.ceil(count * 0.5);
-  grass.metadata.questGrassDensity = { desktopCount: count, xrCount, population: "route" };
   const matrices = new Float32Array(count * 16);
   const assetBottom = getGrassAssetBottom(source);
   const scaling = new BABYLON.Vector3();
@@ -494,6 +493,13 @@ function createRouteGrass(scene, world, startPosition, route, libraries, exclusi
     matrix.copyToArray(matrices, questDensityMatrixIndex(index, count) * 16);
   }
 
+  grass.metadata.questGrassDensity = {
+    desktopCount: count,
+    xrCount,
+    population: "route",
+    desktopMatrices: matrices,
+    xrMatrices: matrices.slice(0, xrCount * 16),
+  };
   grass.thinInstanceSetBuffer("matrix", matrices, 16, true);
   grass.thinInstanceRefreshBoundingInfo(true);
   return { mesh: grass, count };
@@ -947,7 +953,13 @@ function createThinInstanceField(mesh, sampler, startPosition, random, zones, sc
 
   mesh.metadata = {
     ...(mesh.metadata ?? {}),
-    questGrassDensity: { desktopCount: count, xrCount, population: "meadow" },
+    questGrassDensity: {
+      desktopCount: count,
+      xrCount,
+      population: "meadow",
+      desktopMatrices: matrices,
+      xrMatrices: matrices.slice(0, xrCount * 16),
+    },
   };
   mesh.isVisible = true;
   mesh.thinInstanceSetBuffer("matrix", matrices, 16, true);
