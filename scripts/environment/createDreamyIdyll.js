@@ -437,7 +437,12 @@ function createRouteGrass(scene, world, startPosition, route, libraries, exclusi
   grass.isVisible = true;
   grass.isPickable = false;
   grass.receiveShadows = false;
-  grass.metadata = { ...(grass.metadata ?? {}), routeLandscape: true, lod: "thin-instance" };
+  grass.metadata = {
+    ...(grass.metadata ?? {}),
+    routeLandscape: true,
+    lod: "thin-instance",
+    questGrassAliasingAB: "route",
+  };
 
   const random = createRandom(96113);
   const count = ROUTE_GRASS_COUNT + REAR_MEADOW_GRASS_COUNT;
@@ -938,6 +943,7 @@ function createThinInstanceField(mesh, sampler, startPosition, random, zones, sc
     }
   });
 
+  mesh.metadata = { ...(mesh.metadata ?? {}), questGrassAliasingAB: "meadow" };
   mesh.isVisible = true;
   mesh.thinInstanceSetBuffer("matrix", matrices, 16, true);
   mesh.thinInstanceRefreshBoundingInfo(true);

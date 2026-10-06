@@ -35,7 +35,8 @@ export async function initializeWebXR({ scene, enterVrButton, statusElement, onE
       xrCamera.position.y = 0;
     });
 
-    enableVrEntry({ xr, enterVrButton, statusElement, onEntered });
+    const grassAliasingAB = createQuestGrassAliasingAB(scene);
+    enableVrEntry({ xr, enterVrButton, statusElement, onEntered, grassAliasingAB });
     setStatus(statusElement, "WebXR bereit. VR kann betreten werden.");
     return xr;
   } catch (error) {
@@ -46,7 +47,7 @@ export async function initializeWebXR({ scene, enterVrButton, statusElement, onE
   }
 }
 
-function enableVrEntry({ xr, enterVrButton, statusElement, onEntered }) {
+function enableVrEntry({ xr, enterVrButton, statusElement, onEntered, grassAliasingAB }) {
   delete enterVrButton.dataset.xrUnavailable;
   enterVrButton.hidden = false;
   enterVrButton.disabled = false;
@@ -57,7 +58,14 @@ function enableVrEntry({ xr, enterVrButton, statusElement, onEntered }) {
     enterVrButton.hidden = inVr;
 
     if (inVr) {
+      grassAliasingAB.hide();
       setStatus(statusElement, "VR ist aktiv.");
+    } else if (state === BABYLON.WebXRState.NOT_IN_XR) {
+      grassAliasingAB.restore();
+      if (!enterVrButton.disabled) {
+        enterVrButton.textContent = "VR betreten";
+        setStatus(statusElement, "WebXR bereit. VR kann betreten werden.");
+      }
     } else if (!enterVrButton.disabled) {
       enterVrButton.textContent = "VR betreten";
       setStatus(statusElement, "WebXR bereit. VR kann betreten werden.");
@@ -70,9 +78,11 @@ function enableVrEntry({ xr, enterVrButton, statusElement, onEntered }) {
     setStatus(statusElement, "VR-Session wird gestartet …");
 
     try {
+      grassAliasingAB.hide();
       await enterImmersiveVr(xr);
       onEntered?.();
     } catch (error) {
+      grassAliasingAB.restore();
       enterVrButton.textContent = "VR erneut versuchen";
       console.error("Die immersive VR-Session konnte nicht gestartet werden.", error);
       setStatus(statusElement, "VR-Session konnte nicht gestartet werden. Desktop-Test aktiv.");
@@ -80,6 +90,19 @@ function enableVrEntry({ xr, enterVrButton, statusElement, onEntered }) {
       enterVrButton.disabled = false;
     }
   });
+}
+
+function createQuestGrassAliasingAB(scene) {
+  const grassMeshes = scene.meshes.filter((mesh) => mesh.metadata?.questGrassAliasingAB);
+  const desktopVisibility = new Map(grassMeshes.map((mesh) => [mesh, mesh.isVisible]));
+  return {
+    hide() {
+      grassMeshes.forEach((mesh) => { mesh.isVisible = false; });
+    },
+    restore() {
+      grassMeshes.forEach((mesh) => { mesh.isVisible = desktopVisibility.get(mesh); });
+    },
+  };
 }
 
 function showVrUnavailable(enterVrButton) {
