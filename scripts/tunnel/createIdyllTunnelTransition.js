@@ -165,6 +165,11 @@ export function createIdyllTunnelTransition(scene, options) {
   const initialPreviousLightStates = new Map(
     options.previousWorldLights.map((light) => [light, light.isEnabled()]),
   );
+  const idyllGrassVisibility = new Map(
+    options.idyllWorldMeshes
+      .filter((mesh) => mesh.metadata?.questGrassDensity)
+      .map((mesh) => [mesh, mesh.isVisible]),
+  );
 
   // Keep the camera at the root origin. The root can now yaw along the
   // spline without orbiting a desktop camera around the world origin.
@@ -314,6 +319,7 @@ export function createIdyllTunnelTransition(scene, options) {
     if (crossedRiftEntryPlane && !tunnelEntryPrepared) {
       tunnelEntryPrepared = true;
       tunnelEntryElapsed = 0;
+      idyllGrassVisibility.forEach((_, mesh) => { mesh.isVisible = false; });
       options.onTunnelEntry?.();
     }
     // The first frame on the tunnel side of the physical aperture is a hard
@@ -450,6 +456,7 @@ export function createIdyllTunnelTransition(scene, options) {
       initialPreviousLightStates.forEach((enabled, light) => light.setEnabled(enabled));
       initialPreviousMeshStates.forEach((enabled, mesh) => mesh.setEnabled(enabled));
       initialWorldMeshStates.forEach((enabled, mesh) => mesh.setEnabled(enabled));
+      idyllGrassVisibility.forEach((isVisible, mesh) => { mesh.isVisible = isVisible; });
       options.tunnel.reset();
       tunnelWorld.reset();
       rift.reset();
