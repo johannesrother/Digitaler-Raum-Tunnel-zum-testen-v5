@@ -58,14 +58,19 @@ export function createIdyllSound() {
     if (started) {
       return;
     }
+    // Reserve this run before play() resolves; stale promises must not revive
+    // a stopped run or permit overlapping start requests.
+    started = true;
+    const generation = runId;
     // A prior idyll-to-rift fade reaches zero. Every run must restore the
     // configured level before reusing this same HTMLAudioElement.
     idyllAudio.volume = IDYLL_SOUND_VOLUME;
     idyllAudio.currentTime = 0;
     idyllAudio.play().then(() => {
-      started = true;
+      if (generation !== runId || !started) return;
       removeStartListeners();
     }).catch(() => {
+      if (generation === runId) started = false;
       // A later real interaction retries the same simple HTML-audio play call.
     });
   };

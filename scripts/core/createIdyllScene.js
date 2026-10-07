@@ -29,6 +29,9 @@ export async function createIdyllScene(
   const environment = await createIdyllEnvironment(scene);
   const dreamyIdyll = await createDreamyIdyll(scene, environment.startPosition);
   disableOldIdyllVisuals(environment);
+  // These legacy assets are permanently hidden; only the dreamy world's
+  // own atmosphere needs to animate. Keep their entrance/data dependencies.
+  environment.breeze.dispose();
   disablePreviousIdyllLighting(environment);
   // Rift, tunnel route and White Room share this independent landscape anchor.
   // The house remains a static idyll object and provides no portal transform.
