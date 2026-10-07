@@ -16,9 +16,11 @@ export const TRAFFIC_EVENTS = Object.freeze([
   { start: 45.6, end: 48.2, offset: 18.0, volume: 0.32, fadeIn: 0.11, fadeOut: 0.2 },
   { start: 48.55, end: 50.15, offset: 72.0, volume: 0.33, fadeIn: 0.08, fadeOut: 0.14 },
   { start: 50.3, end: 54.7, offset: 38.0, volume: 0.34, fadeIn: 0.065, fadeOut: 1.1 },
-  { start: 54.86, end: 56.16, offset: 62.0, volume: 0.34, fadeIn: 0.05, fadeOut: 0.1 },
-  { start: 56.32, end: 57.52, offset: 15.0, volume: 0.33, fadeIn: 0.045, fadeOut: 0.09 },
-  { start: 57.68, end: 58.82, offset: 43.0, volume: 0.31, fadeIn: 0.04, fadeOut: 0.2 },
+  { start: 54.73, end: 55.62, offset: 62.0, volume: 0.32, fadeIn: 0.025, fadeOut: 0.05 },
+  { start: 55.66, end: 56.55, offset: 15.0, volume: 0.31, fadeIn: 0.025, fadeOut: 0.05 },
+  { start: 56.58, end: 57.48, offset: 43.0, volume: 0.32, fadeIn: 0.02, fadeOut: 0.045 },
+  { start: 57.5, end: 58.35, offset: 26.0, volume: 0.30, fadeIn: 0.02, fadeOut: 0.04 },
+  { start: 58.37, end: 59.18, offset: 68.0, volume: 0.28, fadeIn: 0.018, fadeOut: 0.1 },
 ]);
 
 /** A single reusable HTML-audio source driven by authoritative tunnel progress. */

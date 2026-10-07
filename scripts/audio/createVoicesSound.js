@@ -18,10 +18,12 @@ export const VOICES_LATE_EVENTS = Object.freeze([
   { start: 45.6, end: 48.2, offset: 4.8, volume: 0.28, fadeIn: 0.08, fadeOut: 0.16 },
   { start: 48.55, end: 50.15, offset: 1.8, volume: 0.30, fadeIn: 0.065, fadeOut: 0.12 },
   { start: 50.3, end: 52.1, offset: 4.0, volume: 0.30, fadeIn: 0.055, fadeOut: 0.12 },
-  { start: 52.28, end: 53.72, offset: 1.1, volume: 0.30, fadeIn: 0.05, fadeOut: 0.1 },
-  { start: 53.86, end: 55.8, offset: 5.1, volume: 0.29, fadeIn: 0.055, fadeOut: 0.11 },
-  { start: 56.02, end: 57.35, offset: 2.2, volume: 0.30, fadeIn: 0.045, fadeOut: 0.09 },
-  { start: 57.48, end: 58.78, offset: 6.0, volume: 0.28, fadeIn: 0.04, fadeOut: 0.18 },
+  { start: 52.12, end: 53.7, offset: 1.1, volume: 0.29, fadeIn: 0.03, fadeOut: 0.06 },
+  { start: 53.74, end: 55.18, offset: 5.1, volume: 0.28, fadeIn: 0.025, fadeOut: 0.055 },
+  { start: 55.21, end: 56.42, offset: 2.2, volume: 0.29, fadeIn: 0.025, fadeOut: 0.05 },
+  { start: 56.45, end: 57.55, offset: 6.0, volume: 0.27, fadeIn: 0.02, fadeOut: 0.045 },
+  { start: 57.57, end: 58.48, offset: 0.65, volume: 0.28, fadeIn: 0.02, fadeOut: 0.04 },
+  { start: 58.5, end: 59.18, offset: 4.85, volume: 0.26, fadeIn: 0.018, fadeOut: 0.1 },
 ]);
 
 /** A short, non-looping voice layer introduced by the first tunnel video cut. */
