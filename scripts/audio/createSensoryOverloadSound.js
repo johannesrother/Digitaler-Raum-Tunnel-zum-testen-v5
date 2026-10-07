@@ -53,6 +53,28 @@ export const SENSORY_OVERLOAD_EVENTS = Object.freeze([
   { source: "walla", start: 50.3, end: 54.5, offset: 8.0, volume: 0.082, fadeIn: 0.075, fadeOut: 0.7 },
   { source: "demonic", start: 50.4, end: 52.05, offset: 0.18, volume: 0.175, fadeIn: 0.045, fadeOut: 0.1 },
   { source: "greeting", start: 50.55, end: 52.1, offset: 2.1, volume: 0.165, fadeIn: 0.045, fadeOut: 0.1 },
+
+  // The final peak keeps all existing source ceilings, but compresses the
+  // relief gaps and fragments each source more aggressively. The suction
+  // enters underneath at 52 s and survives the clean collapse at 58.9 s.
+  { source: "noise", start: 52.28, end: 53.76, offset: 0.9, volume: 0.08, fadeIn: 0.045, fadeOut: 0.09 },
+  { source: "greeting", start: 52.36, end: 53.68, offset: 0.2, volume: 0.165, fadeIn: 0.04, fadeOut: 0.08 },
+  { source: "demonic", start: 52.48, end: 53.72, offset: 0.34, volume: 0.175, fadeIn: 0.04, fadeOut: 0.08 },
+
+  { source: "noise", start: 54.02, end: 55.86, offset: 5.2, volume: 0.08, fadeIn: 0.05, fadeOut: 0.1 },
+  { source: "greeting", start: 54.15, end: 55.72, offset: 1.35, volume: 0.165, fadeIn: 0.04, fadeOut: 0.08 },
+  { source: "demonic", start: 54.42, end: 55.66, offset: 0.72, volume: 0.175, fadeIn: 0.04, fadeOut: 0.08 },
+  { source: "walla", start: 54.62, end: 56.06, offset: 22.0, volume: 0.082, fadeIn: 0.05, fadeOut: 0.1 },
+
+  { source: "noise", start: 56.05, end: 57.43, offset: 2.7, volume: 0.08, fadeIn: 0.04, fadeOut: 0.08 },
+  { source: "greeting", start: 56.12, end: 57.36, offset: 2.45, volume: 0.165, fadeIn: 0.035, fadeOut: 0.075 },
+  { source: "walla", start: 56.18, end: 57.5, offset: 44.0, volume: 0.082, fadeIn: 0.04, fadeOut: 0.08 },
+  { source: "demonic", start: 56.2, end: 57.42, offset: 0.1, volume: 0.175, fadeIn: 0.035, fadeOut: 0.075 },
+
+  { source: "noise", start: 57.52, end: 58.86, offset: 6.1, volume: 0.08, fadeIn: 0.035, fadeOut: 0.16 },
+  { source: "greeting", start: 57.6, end: 58.82, offset: 0.6, volume: 0.165, fadeIn: 0.035, fadeOut: 0.15 },
+  { source: "walla", start: 57.66, end: 58.9, offset: 31.0, volume: 0.082, fadeIn: 0.035, fadeOut: 0.18 },
+  { source: "demonic", start: 57.72, end: 58.84, offset: 0.55, volume: 0.175, fadeIn: 0.03, fadeOut: 0.14 },
 ]);
 
 /** Four reusable sources; all scheduling is tied to tunnel progress. */

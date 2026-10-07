@@ -109,6 +109,7 @@ export async function createIdyllScene(
       voicesSound.update(tunnelTime);
       trafficSound.update(tunnelTime);
       sensoryOverloadSound.update(tunnelTime);
+      suctionSound.update(tunnelTime);
     },
     onTunnelVideoChange: ({ index, video }) => {
       // The current sequence opens with video 12. Preserve that sequence and
@@ -116,10 +117,7 @@ export async function createIdyllScene(
       if (index === 0 && video === 2) voicesSound.start();
     },
     onSuctionStart: (tunnelTime, tunnelEndTime) => {
-      suctionSound.start();
-      voicesSound.fadeOutAndStop(1.5);
-      trafficSound.beginExitFade(tunnelTime, 2.2);
-      sensoryOverloadSound.beginExitFade(tunnelTime, 2);
+      suctionSound.start({ tunnelTime, tunnelEndTime });
       suctionWhiteFade.start(tunnelTime, tunnelEndTime);
       tunnelSound.fadeTo(0.28, 8);
     },
@@ -127,8 +125,9 @@ export async function createIdyllScene(
       suctionWhiteFade.finish();
       idyllDesaturation.reset();
       onWhiteRoomEntry?.();
-      tunnelSound.fadeOutAndStop(2);
-      suctionSound.fadeOutAndStop(2);
+      tunnelSound.stop();
+      suctionSound.stop();
+      voicesSound.stop();
       trafficSound.stop();
       sensoryOverloadSound.stop();
     },
